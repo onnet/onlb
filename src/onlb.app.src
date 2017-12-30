@@ -1,0 +1,21 @@
+{application, onlb,
+ [
+  {description, "OnLB - Bridge to LanBilling over MySQL and SOAP - temporary helper app for migration to Kazoo OnBill"},
+  {vsn, "4.0.0"},
+  {modules, []},
+  {registered, [onlb_listener, onlb_sup]},
+  {applications, [ kernel
+                 , stdlib
+                 , crypto
+
+                 , kazoo_apps
+                 , kazoo_amqp
+                 , kazoo_data
+
+                 , hotornot
+                 , jonny5
+
+                 , lager
+                 ]},
+  {mod, {onlb_app, []}}
+ ]}.

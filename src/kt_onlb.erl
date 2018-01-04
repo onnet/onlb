@@ -3,6 +3,7 @@
 
 -export([init/0
         ,help/1, help/2, help/3
+        ,output_header/1
         ]).
 
 %% Verifiers
@@ -10,7 +11,8 @@
         ]).
 
 %% Appliers
--export([import_periodic_fees/3
+-export([balance_comparison/2
+        ,import_periodic_fees/3
         ,import_accounts/3
         ,import_onbill_data1/3
         ,is_allowed/1
@@ -21,7 +23,8 @@
 -include("onlb.hrl").
 
 -define(CATEGORY, "onlb").
--define(ACTIONS, [<<"import_periodic_fees">>
+-define(ACTIONS, [<<"balance_comparison">>
+                 ,<<"import_periodic_fees">>
                  ,<<"import_accounts">>
                  ,<<"import_onbill_data1">>
                  ]).
@@ -96,6 +99,15 @@ init() ->
     _ = tasks_bindings:bind(<<"tasks."?CATEGORY".output_header">>, ?MODULE, 'output_header'),
     tasks_bindings:bind_actions(<<"tasks."?CATEGORY>>, ?MODULE, ?ACTIONS).
 
+-spec output_header(ne_binary()) -> kz_csv:row().
+output_header(<<"balance_comparison">>) ->
+    [<<"account_id">>
+    ,<<"account_name">>
+    ,<<"kazoo_balance">>
+    ,<<"lb_balance">>
+    ,<<"difference">>
+    ].
+
 -spec help(kz_json:object()) -> kz_json:object().
 help(JObj) -> help(JObj, <<?CATEGORY>>).
 
@@ -106,6 +118,12 @@ help(JObj, <<?CATEGORY>>=Category) ->
 -spec help(kz_json:object(), ne_binary(), ne_binary()) -> kz_json:object().
 help(JObj, <<?CATEGORY>>=Category, Action) ->
     kz_json:set_value([Category, Action], kz_json:from_list(action(Action)), JObj).
+
+-spec action(ne_binary()) -> kz_proplist().
+action(<<"balance_comparison">>) ->
+    [{<<"description">>, <<"compare Kazoo and LanBilling balances">>}
+    ,{<<"doc">>, <<"Just an experimentsl feature.">>}
+    ];
 
 action(<<"import_periodic_fees">>) ->
     Mandatory = ?IMPORT_PERIODIC_FEES_MANDATORY_FIELDS,
@@ -144,6 +162,23 @@ action(<<"import_onbill_data1">>) ->
 
 
 %%% Appliers
+
+-spec balance_comparison(kz_tasks:extra_args(), kz_tasks:iterator()) -> kz_tasks:iterator().
+balance_comparison(#{account_id := AccountId}, init) ->
+    {'ok', get_children(AccountId)};
+balance_comparison(_, []) -> stop;
+balance_comparison(_, [SubAccountId | DescendantsIds]) ->
+    {'ok', JObj} = kz_account:fetch(SubAccountId),
+    KazooBalance = onbill_util:current_account_dollars(SubAccountId),
+    LbBalance = onlb_sql:account_balance(SubAccountId),
+    Difference =
+        try kz_term:to_float(KazooBalance) - kz_term:to_float(LbBalance) catch _:_ -> 'math_error' end,
+    {[SubAccountId
+     ,kz_account:name(JObj)
+     ,KazooBalance
+     ,LbBalance
+     ,Difference
+     ], DescendantsIds}.
 
 -spec import_periodic_fees(kz_tasks:extra_args(), kz_tasks:iterator(), kz_tasks:args()) ->
                     {kz_tasks:return(), sets:set()}.
@@ -313,6 +348,18 @@ get_descendants(AccountId) ->
                   ,{'endkey', [AccountId, kz_json:new()]}
                   ],
     case kz_datamgr:get_results(?KZ_ACCOUNTS_DB, <<"accounts/listing_by_descendants">>, ViewOptions) of
+        {'ok', JObjs} -> [kz_doc:id(JObj) || JObj <- JObjs];
+        {'error', _R} ->
+            lager:debug("unable to get descendants of ~s: ~p", [AccountId, _R]),
+            []
+    end.
+
+-spec get_children(ne_binary()) -> ne_binaries().
+get_children(AccountId) ->
+    ViewOptions = [{'startkey', [AccountId]}
+                  ,{'endkey', [AccountId, kz_json:new()]}
+                  ],
+    case kz_datamgr:get_results(?KZ_ACCOUNTS_DB, <<"accounts/listing_by_children">>, ViewOptions) of
         {'ok', JObjs} -> [kz_doc:id(JObj) || JObj <- JObjs];
         {'error', _R} ->
             lager:debug("unable to get descendants of ~s: ~p", [AccountId, _R]),

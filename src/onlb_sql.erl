@@ -39,13 +39,16 @@ lbuid_by_uuid(AccountId) ->
 
 -spec account_balance(ne_binary()) -> any().
 account_balance(AccountId) ->
-    UUID = lbuid_by_uuid(AccountId),
-    case mysql_poolboy:query(?LB_MYSQL_POOL
-                            ,<<"SELECT COALESCE(sum(balance),0) FROM agreements  where uid = ? and agreements.archive = 0">>
-                            ,[UUID])
-    of
-        {ok,_,[[Amount]]} -> Amount;
-        _ -> 'undefined'
+    case lbuid_by_uuid(AccountId) of
+        'undefined' -> 'undefined';
+        UID ->
+            case mysql_poolboy:query(?LB_MYSQL_POOL
+                                    ,<<"SELECT COALESCE(sum(balance),0) FROM agreements  where uid = ? and agreements.archive = 0">>
+                                    ,[UID])
+            of
+                {ok,_,[[Amount]]} -> Amount;
+                _ -> 'undefined'
+            end
     end.
 
 -spec get_main_agrm_id(ne_binary()) -> any().

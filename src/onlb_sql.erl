@@ -6,6 +6,7 @@
         ,account_balance/1
         ,get_main_agrm_id/1
         ,update_lb_account/3
+        ,curr_month_credit/1
         ]).
 
 -include_lib("onlb.hrl").
@@ -100,3 +101,18 @@ lager:info("IAMC update_lb_account Values: ~p",[Values]),
 lager:info("IAMC update_lb_account mysql_poolboy:query Res: ~p",[Res]).
  %   mysql_poolboy:query(?LB_MYSQL_POOL, QueryString).
     
+-spec curr_month_credit(ne_binary()) -> any().
+curr_month_credit(AccountId) ->
+    case lbuid_by_uuid(AccountId) of
+        'undefined' -> 'undefined';
+        UID ->
+            case mysql_poolboy:query(?LB_MYSQL_POOL
+                                    ,<<"SELECT SUM(amount) FROM payments where pay_date >= DATE_FORMAT(NOW() ,'%Y-%m-01') and agrm_id = ?">>
+                                    ,[UID])
+            of
+                {ok,_,[['null']]} -> 'undefined';
+                {ok,_,[[Amount]]} -> Amount;
+                _ -> 'undefined'
+        end
+    end.
+

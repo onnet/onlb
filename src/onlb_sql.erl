@@ -67,8 +67,8 @@ update_lb_account(UID, _AccountId, Doc) ->
     AccountName = kz_json:get_binary_value(<<"account_name">>, Doc, <<>>),
     Type =
         case kz_json:get_binary_value(<<"customer_type">>, Doc) of
-            <<"personal">> -> 1;
-            _ -> 2
+            <<"personal">> -> 2;
+            _ -> 1
         end,
     QueryString =
         <<"UPDATE `billing`.`accounts` SET name = ? "
@@ -95,6 +95,7 @@ update_lb_account(UID, _AccountId, Doc) ->
              ,kz_term:to_binary(UID)
              ],
 lager:info("IAMC update_lb_account QueryString: ~p",[QueryString]),
+lager:info("IAMC update_lb_account Values: ~p",[Values]),
  Res =   mysql_poolboy:query(?LB_MYSQL_POOL, QueryString, Values),
 lager:info("IAMC update_lb_account mysql_poolboy:query Res: ~p",[Res]).
  %   mysql_poolboy:query(?LB_MYSQL_POOL, QueryString).

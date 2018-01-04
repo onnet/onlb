@@ -110,7 +110,7 @@ curr_month_credit(AccountId) ->
                                     ,<<"SELECT SUM(amount) FROM payments where pay_date >= DATE_FORMAT(NOW() ,'%Y-%m-01') and agrm_id = ?">>
                                     ,[UID])
             of
-                {ok,_,[['null']]} -> 'undefined';
+                {ok,_,[['null']]} -> 0.0;
                 {ok,_,[[Amount]]} -> Amount;
                 _ -> 'undefined'
         end

@@ -109,7 +109,10 @@ curr_month_credit(AccountId) ->
     case get_main_agrm_id(AccountId) of
         'undefined' -> 'undefined';
         AgrmId ->
-            case mysql_poolboy:query(?LB_MYSQL_POOL ,<<"SELECT SUM(amount) FROM payments where pay_date >= DATE_FORMAT(NOW() ,'%Y-%m-01') and agrm_id = ?">> ,[AgrmId])
+            case mysql_poolboy:query(?LB_MYSQL_POOL
+                                    ,<<"SELECT SUM(amount) FROM payments where pay_date >= DATE_FORMAT(NOW() ,'%Y-%m-01') and agrm_id = ?">>
+                                    ,[AgrmId]
+                                    )
             of
                 {ok,_,[['null']]} -> 0.0;
                 {ok,_,[[Amount]]} -> Amount;

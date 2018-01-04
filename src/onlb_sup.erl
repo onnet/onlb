@@ -48,6 +48,7 @@ start_link() ->
 %%--------------------------------------------------------------------
 -spec init(any()) -> sup_init_ret().
 init([]) ->
+    kt_onlb:init(),
     Children = ?CHILDREN ++ onlb_sql:maybe_mysql_child(),
     RestartStrategy = 'one_for_one',
     MaxRestarts = 5,

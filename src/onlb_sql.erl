@@ -62,9 +62,37 @@ get_main_agrm_id(AccountId) ->
 -spec update_lb_account(integer(), ne_binary(), kz_json:object()) -> any().
 update_lb_account(UID, _AccountId, Doc) ->
     AccountName = kz_json:get_binary_value(<<"account_name">>, Doc, <<>>),
-    INN = kz_json:get_binary_value(<<"account_inn">>, Doc, <<>>),
-    KPP = kz_json:get_binary_value(<<"account_kpp">>, Doc, <<>>),
-    mysql_poolboy:query(?LB_MYSQL_POOL
-                       ,<<"UPDATE `billing`.`accounts` SET name = ?, inn = ?, kpp = ? WHERE accounts.uid = ?">>
-                       ,[AccountName, INN, KPP, UID]).
+    Type =
+        case kz_json:get_binary_value(<<"customer_type">>, Doc) of
+            <<"personal">> -> 1;
+            _ -> 2
+        end,
+    QueryString =
+        <<"UPDATE `billing`.`accounts` SET name = ? "
+         ,",type = ? "
+         ,",inn = ? "
+         ,",kpp = ? "
+         ,",ogrn = ? "
+         ,",bank_name = ? "
+         ,",branch_bank_name = ? "
+         ,",bik = ? "
+         ,",settl = ? "
+         ,",corr = ? "
+         ," WHERE accounts.uid = ?">>,
+    Values = [kz_term:to_binary(AccountName)
+             ,kz_term:to_binary(Type)
+             ,kz_json:get_binary_value(<<"account_inn">>, Doc, <<>>)
+             ,kz_json:get_binary_value(<<"account_kpp">>, Doc, <<>>)
+             ,kz_json:get_binary_value(<<"account_ogrn">>, Doc, <<>>)
+             ,kz_json:get_binary_value([<<"banking_details">>,<<"bank_name">>], Doc, <<>>)
+             ,kz_json:get_binary_value([<<"banking_details">>,<<"bank_branch_name">>], Doc, <<>>)
+             ,kz_json:get_binary_value([<<"banking_details">>,<<"bik">>], Doc, <<>>)
+             ,kz_json:get_binary_value([<<"banking_details">>,<<"settlement_account">>], Doc, <<>>)
+             ,kz_json:get_binary_value([<<"banking_details">>,<<"correspondent_account">>], Doc, <<>>)
+             ,kz_term:to_binary(UID)
+             ],
+lager:info("IAMC update_lb_account QueryString: ~p",[QueryString]),
+ Res =   mysql_poolboy:query(?LB_MYSQL_POOL, QueryString, Values),
+lager:info("IAMC update_lb_account mysql_poolboy:query Res: ~p",[Res]).
+ %   mysql_poolboy:query(?LB_MYSQL_POOL, QueryString).
     

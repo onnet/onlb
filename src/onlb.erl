@@ -18,7 +18,7 @@ add_payment(AccountId, JObj) ->
             Summ = wht_util:units_to_dollars(kz_json:get_integer_value(<<"pvt_amount">>, Doc, 0)),
             Receipt = kz_json:get_binary_value(<<"_id">>, Doc, <<>>),
             Comment = kz_json:get_binary_value(<<"description">>, Doc, <<>>),
-            lb_http:add_payment(AgrmId, Summ, Receipt, Comment, AccountId);
+            onlb_http:add_payment(AgrmId, Summ, Receipt, Comment, AccountId);
         _ ->
             'ok'
     end.
@@ -40,4 +40,4 @@ sync_onbill_lb_info(AccountId, JObj) ->
 create_lb_account(AccountId, _Doc) ->
     {'ok', AccountJObj} = kz_account:fetch(AccountId),
     [Login|_] = binary:split(kz_account:realm(AccountJObj), <<".">>),
-    lb_http:soap_create_account(AccountId, Login, kz_binary:rand_hex(7), 1).
+    onlb_http:soap_create_account(AccountId, Login, kz_binary:rand_hex(7), 1).

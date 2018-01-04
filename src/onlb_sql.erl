@@ -54,13 +54,16 @@ account_balance(AccountId) ->
 
 -spec get_main_agrm_id(ne_binary()) -> any().
 get_main_agrm_id(AccountId) ->
-    UUID = lbuid_by_uuid(AccountId),
-    case mysql_poolboy:query(?LB_MYSQL_POOL
-                            ,<<"SELECT agrm_id from agreements where uid  = ? and oper_id = 1 limit 1">>
-                            ,[UUID])
-    of
-        {ok,_,[[AgrmId]]} -> AgrmId;
-        _ -> 'undefined'
+    case lbuid_by_uuid(AccountId) of
+        'undefined' -> 'undefined';
+        UID ->
+            case mysql_poolboy:query(?LB_MYSQL_POOL
+                                    ,<<"SELECT agrm_id from agreements where uid  = ? and oper_id = 1 limit 1">>
+                                    ,[UID])
+            of
+                {ok,_,[[AgrmId]]} -> AgrmId;
+                _ -> 'undefined'
+            end
     end.
 
 -spec update_lb_account(integer(), ne_binary(), kz_json:object()) -> any().
@@ -103,12 +106,10 @@ lager:info("IAMC update_lb_account mysql_poolboy:query Res: ~p",[Res]).
     
 -spec curr_month_credit(ne_binary()) -> any().
 curr_month_credit(AccountId) ->
-    case lbuid_by_uuid(AccountId) of
+    case get_main_agrm_id(AccountId) of
         'undefined' -> 'undefined';
-        UID ->
-            case mysql_poolboy:query(?LB_MYSQL_POOL
-                                    ,<<"SELECT SUM(amount) FROM payments where pay_date >= DATE_FORMAT(NOW() ,'%Y-%m-01') and agrm_id = ?">>
-                                    ,[UID])
+        AgrmId ->
+            case mysql_poolboy:query(?LB_MYSQL_POOL ,<<"SELECT SUM(amount) FROM payments where pay_date >= DATE_FORMAT(NOW() ,'%Y-%m-01') and agrm_id = ?">> ,[AgrmId])
             of
                 {ok,_,[['null']]} -> 0.0;
                 {ok,_,[[Amount]]} -> Amount;

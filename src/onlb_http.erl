@@ -147,7 +147,7 @@ soap_create_account(AccountId, Login, Passwd, Type) ->
                 ++ "<ipaccess>0</ipaccess>"
                 ++ "<billdelivery>0</billdelivery>"
                 ++ "<category>0</category>"
-                ++ "<type>"++kz_term:to_integer(Type)++"</type>"
+                ++ "<type>"++kz_term:to_list(Type)++"</type>"
                 ++ "<oksm>0</oksm>"
                 ++ "<templ>0</templ>"
                 ++ "<wrongactive>0</wrongactive>"

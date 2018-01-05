@@ -512,7 +512,10 @@ fetch_transactions_docs(AccountId) ->
     end.
 
 filter_transactions(TrType, TrDocs) ->
-    [TrDoc || TrDoc <- TrDocs, kz_json:get_value(<<"pvt_type">>, TrDoc) == TrType].
+    [TrDoc || TrDoc <- TrDocs
+            ,kz_json:get_value(<<"pvt_type">>, TrDoc) == TrType
+            ,kz_json:get_value(<<"pvt_reason">>, TrDoc) /= <<"database_rollup">>
+    ].
 
 summ_transactions(TrDocs) ->
     lists:foldl(fun(X, Acc) -> Acc + kz_json:get_integer_value(<<"pvt_amount">>, X, 0) end, 0, TrDocs).

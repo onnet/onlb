@@ -7,6 +7,7 @@
         ,get_main_agrm_id/1
         ,update_lb_account/3
         ,curr_month_credit/1
+        ,bom_balance/1
         ]).
 
 -include_lib("onlb.hrl").
@@ -118,5 +119,21 @@ curr_month_credit(AccountId) ->
                 {ok,_,[[Amount]]} -> Amount;
                 _ -> 'undefined'
         end
+    end.
+
+-spec bom_balance(ne_binary()) -> any().
+bom_balance(AccountId) ->
+    QStr = <<"SELECT  COALESCE(sum(balances.balance),0) "
+            ,"FROM agreements, accounts, balances "
+            ,"where agreements.uid = accounts.uid "
+            ,"and agreements.agrm_id = balances.agrm_id "
+            ,"and accounts.uuid != '' "
+            ,"and balances.balance != 0 "
+            ,"and balances.date = DATE_FORMAT(NOW() ,'%Y-%m-01') "
+            ,"and accounts.uuid = ?"
+           >>,
+    case mysql_poolboy:query(?LB_MYSQL_POOL, QStr, [AccountId]) of
+        {ok,_,[[Uid]]} -> Uid;
+        _ -> 'undefined'
     end.
 

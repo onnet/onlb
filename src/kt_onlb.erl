@@ -105,9 +105,12 @@ init() ->
 output_header(<<"balance_comparison">>) ->
     [<<"account_id">>
     ,<<"account_name">>
-    ,<<"kazoo_balance">>
-    ,<<"lb_balance">>
-    ,<<"difference">>
+    ,<<"bom_kazoo_balance">>
+    ,<<"bom_lb_balance">>
+    ,<<"bom_difference">>
+    ,<<"current_kazoo_balance">>
+    ,<<"current_lb_balance">>
+    ,<<"current_difference">>
     ];
 
 output_header(<<"credit_comparison">>) ->
@@ -183,16 +186,33 @@ balance_comparison(#{account_id := AccountId}, init) ->
     {'ok', get_children(AccountId)};
 balance_comparison(_, []) -> stop;
 balance_comparison(_, [SubAccountId | DescendantsIds]) ->
+lager:info("IAMKT SubAccountId: ~p",[SubAccountId]),
     {'ok', JObj} = kz_account:fetch(SubAccountId),
-    KazooBalance = onbill_util:current_account_dollars(SubAccountId),
-    LbBalance = onlb_sql:account_balance(SubAccountId),
-    Difference =
-        try kz_term:to_float(KazooBalance) - kz_term:to_float(LbBalance) catch _:_ -> 'math_error' end,
+lager:info("IAMKT Account Name: ~p",[kz_account:name(JObj)]),
+    {{Y,M,_}, _ } = calendar:gregorian_seconds_to_datetime(kz_time:current_tstamp()),
+    BOM_KazooBalance =
+       case onbill_util:day_start_balance_dollars(SubAccountId, Y, M, 1) of
+           {'error', _} -> 'error';
+           BomBalance -> BomBalance
+       end,
+lager:info("IAMKT BOM_KazooBalance: ~p",[BOM_KazooBalance]),
+    BOM_LbBalance = onlb_sql:bom_balance(SubAccountId),
+lager:info("IAMKT BOM_LbBalance: ~p",[BOM_LbBalance]),
+    BOM_Difference =
+        try kz_term:to_float(BOM_KazooBalance) - kz_term:to_float(BOM_LbBalance) catch _:_ -> 'math_error' end,
+lager:info("IAMKT BOM_Difference: ~p",[BOM_Difference]),
+    CurrentKazooBalance = onbill_util:current_account_dollars(SubAccountId),
+    CurrentLbBalance = onlb_sql:account_balance(SubAccountId),
+    CurrentDifference =
+        try kz_term:to_float(CurrentKazooBalance) - kz_term:to_float(CurrentLbBalance) catch _:_ -> 'math_error' end,
     {[SubAccountId
      ,kz_account:name(JObj)
-     ,KazooBalance
-     ,LbBalance
-     ,Difference
+     ,BOM_KazooBalance
+     ,BOM_LbBalance
+     ,BOM_Difference
+     ,CurrentKazooBalance
+     ,CurrentLbBalance
+     ,CurrentDifference
      ], DescendantsIds}.
 
 -spec credit_comparison(kz_tasks:extra_args(), kz_tasks:iterator()) -> kz_tasks:iterator().

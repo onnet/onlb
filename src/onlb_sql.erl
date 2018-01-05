@@ -8,6 +8,7 @@
         ,update_lb_account/3
         ,curr_month_credit/1
         ,bom_balance/1
+        ,calc_curr_month_exp/1
         ]).
 
 -include_lib("onlb.hrl").
@@ -137,3 +138,21 @@ bom_balance(AccountId) ->
         _ -> 'undefined'
     end.
 
+-spec calc_curr_month_exp(ne_binary()) -> any().
+calc_curr_month_exp(AccountId) ->
+    case lbuid_by_uuid(AccountId) of
+        'undefined' -> 'undefined';
+        UID ->
+            {{Year,Month,Day}, _ } = calendar:gregorian_seconds_to_datetime(kz_time:current_tstamp()),
+            Today = io_lib:format("~w~2..0w~2..0w",[Year, Month, Day]),
+            QueryString = io_lib:format("Select COALESCE(ifnull((SELECT sum(amount) FROM  tel001~s where uid = ~p),0) + ifnull((SELECT sum(amount) FROM  day where Month(timefrom) = Month(Now()) and Year(timefrom) = Year(Now()) and uid = ~p),0) + (Select sum(amount) from charges where agrm_id = (SELECT agrm_id FROM agreements where uid = ~p and oper_id = 1 and archive = 0) and Month(period) = Month(Now()) and Year(period) = Year(Now())),0)",[Today,UID,UID,UID]),
+            QueryCheckTableString = io_lib:format("show tables like 'tel001~s'", [Today]),
+            case mysql_poolboy:query(?LB_MYSQL_POOL, QueryCheckTableString) of
+                {ok,_,[]} -> 'undefined';
+                _  ->
+                    case mysql_poolboy:query(?LB_MYSQL_POOL, QueryString) of
+                        {ok,_,[[Amount]]} -> Amount;
+                        _ -> 'undefined'
+                    end
+            end
+    end.

@@ -13,10 +13,17 @@
 %% Appliers
 -export([balance_comparison/2
         ,credit_comparison/2
+        ,usage_comparison/2
         ,import_periodic_fees/3
         ,import_accounts/3
         ,import_onbill_data1/3
         ,is_allowed/1
+        ]).
+
+%% Dev temp
+-export([fetch_transactions_docs/1
+        ,filter_transactions/2
+        ,summ_transactions/1
         ]).
 
 -include_lib("tasks/src/tasks.hrl").
@@ -26,6 +33,7 @@
 -define(CATEGORY, "onlb").
 -define(ACTIONS, [<<"balance_comparison">>
                  ,<<"credit_comparison">>
+                 ,<<"usage_comparison">>
                  ,<<"import_periodic_fees">>
                  ,<<"import_accounts">>
                  ,<<"import_onbill_data1">>
@@ -119,6 +127,14 @@ output_header(<<"credit_comparison">>) ->
     ,<<"kazoo_credit">>
     ,<<"lb_credit">>
     ,<<"difference">>
+    ];
+
+output_header(<<"usage_comparison">>) ->
+    [<<"account_id">>
+    ,<<"account_name">>
+    ,<<"kazoo_usage">>
+    ,<<"lb_usage">>
+    ,<<"difference">>
     ].
 
 -spec help(kz_json:object()) -> kz_json:object().
@@ -140,6 +156,11 @@ action(<<"balance_comparison">>) ->
 
 action(<<"credit_comparison">>) ->
     [{<<"description">>, <<"compare Kazoo and LanBilling current month total credit">>}
+    ,{<<"doc">>, <<"Just an experimentsl feature.">>}
+    ];
+
+action(<<"usage_comparison">>) ->
+    [{<<"description">>, <<"compare Kazoo and LanBilling current month charges">>}
     ,{<<"doc">>, <<"Just an experimentsl feature.">>}
     ];
 
@@ -229,6 +250,23 @@ credit_comparison(_, [SubAccountId | DescendantsIds]) ->
      ,kz_account:name(JObj)
      ,KazooCredit
      ,LbCredit
+     ,Difference
+     ], DescendantsIds}.
+
+-spec usage_comparison(kz_tasks:extra_args(), kz_tasks:iterator()) -> kz_tasks:iterator().
+usage_comparison(#{account_id := AccountId}, init) ->
+    {'ok', get_children(AccountId)};
+usage_comparison(_, []) -> stop;
+usage_comparison(_, [SubAccountId | DescendantsIds]) ->
+    {'ok', JObj} = kz_account:fetch(SubAccountId),
+    KazooUsage = wht_util:units_to_dollars(summ_transactions(filter_transactions(<<"debit">>, fetch_transactions_docs(SubAccountId)))),
+    LbUsage = onlb_sql:calc_curr_month_exp(SubAccountId),
+    Difference =
+        try kz_term:to_float(KazooUsage) - kz_term:to_float(LbUsage) catch _:_ -> 'math_error' end,
+    {[SubAccountId
+     ,kz_account:name(JObj)
+     ,KazooUsage
+     ,LbUsage
      ,Difference
      ], DescendantsIds}.
 
@@ -525,17 +563,20 @@ remove_periodic_fees_from_db([DescendantId | DescendantsIds]) ->
     timer:sleep(100),
     remove_periodic_fees_from_db(DescendantsIds).
 
+-spec fetch_transactions_docs(ne_binary()) -> kz_json:objects().
 fetch_transactions_docs(AccountId) ->
     case kazoo_modb:get_results(AccountId, <<"transactions/by_timestamp">>, ['include_docs']) of
         {'error', _} -> [];
         {'ok', ViewRes} -> [kz_json:get_value(<<"doc">>, JObj) || JObj <- ViewRes]
     end.
 
+-spec filter_transactions(ne_binary(), kz_json:objects()) -> kz_json:objects().
 filter_transactions(TrType, TrDocs) ->
     [TrDoc || TrDoc <- TrDocs
             ,kz_json:get_value(<<"pvt_type">>, TrDoc) == TrType
             ,kz_json:get_value(<<"pvt_reason">>, TrDoc) /= <<"database_rollup">>
     ].
 
+-spec summ_transactions(kz_json:objects()) -> integer().
 summ_transactions(TrDocs) ->
     lists:foldl(fun(X, Acc) -> Acc + kz_json:get_integer_value(<<"pvt_amount">>, X, 0) end, 0, TrDocs).

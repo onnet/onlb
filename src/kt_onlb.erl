@@ -246,7 +246,6 @@ credit_comparison(_, [SubAccountId | DescendantsIds]) ->
      ,try onbill_util:price_round(KazooCredit) catch _:_ -> KazooCredit end
      ,try onbill_util:price_round(LbCredit) catch _:_ -> LbCredit end
      ,try onbill_util:price_round(Difference) catch _:_ -> Difference end
-     ,Difference
      ], DescendantsIds}.
 
 -spec usage_comparison(kz_tasks:extra_args(), kz_tasks:iterator()) -> kz_tasks:iterator().
@@ -264,7 +263,6 @@ usage_comparison(_, [SubAccountId | DescendantsIds]) ->
      ,KazooUsage
      ,try onbill_util:price_round(LbUsage) catch _:_ -> LbUsage end
      ,try onbill_util:price_round(Difference) catch _:_ -> Difference end
-     ,Difference
      ], DescendantsIds}.
 
 -spec import_periodic_fees(kz_tasks:extra_args(), kz_tasks:iterator(), kz_tasks:args()) ->

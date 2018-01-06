@@ -21,8 +21,6 @@ handle_doc_created(JObj, _Props) ->
     end.
 
 handle_doc_created(<<"credit">>, AccountId, _JObj) ->
-  lager:info("IAMCREDIT handle_doc_created AccountId: ~p",[AccountId]),
-  lager:info("IAMCREDIT handle_doc_created _JObj: ~p",[_JObj]),
     _ = kz_util:spawn(fun onlb:add_payment/2, [AccountId, _JObj]);
 handle_doc_created(_, _, _) ->
     'ok'.
@@ -43,8 +41,6 @@ handle_doc_edited(JObj, _Props) ->
 handle_doc_edited('undefined', AccountId, JObj) ->
     case kz_json:get_value(<<"ID">>, JObj) of
         <<"onbill">> ->
-  lager:info("IAMCREDIT handle_doc_edited AccountId: ~p",[AccountId]),
-  lager:info("IAMCREDIT handle_doc_edited JObj: ~p",[JObj]),
             _ = kz_util:spawn(fun onlb:sync_onbill_lb_info/2, [AccountId, JObj]);
         _ ->
             'ok'

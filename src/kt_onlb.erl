@@ -14,6 +14,7 @@
 -export([balance_comparison/2
         ,credit_comparison/2
         ,usage_comparison/2
+        ,sync_bom_balance/2
         ,import_periodic_fees/3
         ,import_accounts/3
         ,import_onbill_data1/3
@@ -34,6 +35,7 @@
 -define(ACTIONS, [<<"balance_comparison">>
                  ,<<"credit_comparison">>
                  ,<<"usage_comparison">>
+                 ,<<"sync_bom_balance">>
                  ,<<"import_periodic_fees">>
                  ,<<"import_accounts">>
                  ,<<"import_onbill_data1">>
@@ -138,6 +140,12 @@ output_header(<<"usage_comparison">>) ->
     ,<<"kazoo_usage">>
     ,<<"lb_usage">>
     ,<<"difference">>
+    ];
+
+output_header(<<"sync_bom_balance">>) ->
+    [<<"account_id">>
+    ,<<"account_name">>
+    ,<<"balance_set">>
     ].
 
 -spec help(kz_json:object()) -> kz_json:object().
@@ -164,6 +172,11 @@ action(<<"credit_comparison">>) ->
 
 action(<<"usage_comparison">>) ->
     [{<<"description">>, <<"compare Kazoo and LanBilling current month charges">>}
+    ,{<<"doc">>, <<"Just an experimentsl feature.">>}
+    ];
+
+action(<<"sync_bom_balance">>) ->
+    [{<<"description">>, <<"sync Kazoo bom balance to LanBilling's one">>}
     ,{<<"doc">>, <<"Just an experimentsl feature.">>}
     ];
 
@@ -269,12 +282,31 @@ usage_comparison(_, [SubAccountId | DescendantsIds]) ->
         try kz_term:to_float(KazooUsage) - kz_term:to_float(LbUsage) catch _:_ -> 'math_error' end,
     {[SubAccountId
      ,kz_account:name(JObj)
-     ,PrevMonthKazooUsage
+     ,try onbill_util:price_round(PrevMonthKazooUsage) catch _:_ -> PrevMonthKazooUsage end
      ,try onbill_util:price_round(PrevMonthLbUsage) catch _:_ -> PrevMonthLbUsage end
      ,try onbill_util:price_round(PrevMonthDifference) catch _:_ -> PrevMonthDifference end
-     ,KazooUsage
+     ,try onbill_util:price_round(KazooUsage) catch _:_ -> KazooUsage end
      ,try onbill_util:price_round(LbUsage) catch _:_ -> LbUsage end
      ,try onbill_util:price_round(Difference) catch _:_ -> Difference end
+     ], DescendantsIds}.
+
+-spec sync_bom_balance(kz_tasks:extra_args(), kz_tasks:iterator()) -> kz_tasks:iterator().
+sync_bom_balance(#{account_id := AccountId}, init) ->
+    {'ok', get_children(AccountId)};
+sync_bom_balance(_, []) -> stop;
+sync_bom_balance(_, [SubAccountId | DescendantsIds]) ->
+    {'ok', JObj} = kz_account:fetch(SubAccountId),
+    Balance =
+        case onlb_sql:is_prepaid(SubAccountId) of
+            'false' -> 0;
+            'true' ->
+                LB_BOM_Balance = onlb_sql:bom_balance(SubAccountId),
+                try kz_term:to_integer(wht_util:dollars_to_units(LB_BOM_Balance)) catch _:_ -> LB_BOM_Balance end
+        end,
+    Result = set_bom_balance(Balance, SubAccountId),
+    {[SubAccountId
+     ,kz_account:name(JObj)
+     ,Result
      ], DescendantsIds}.
 
 -spec import_periodic_fees(kz_tasks:extra_args(), kz_tasks:iterator(), kz_tasks:args()) ->
@@ -596,3 +628,16 @@ filter_transactions(TrType, TrDocs) ->
 -spec summ_transactions(kz_json:objects()) -> integer().
 summ_transactions(TrDocs) ->
     lists:foldl(fun(X, Acc) -> Acc + kz_json:get_integer_value(<<"pvt_amount">>, X, 0) end, 0, TrDocs).
+
+set_bom_balance(Amount, AccountId) when is_integer(Amount) ->
+    case kazoo_modb:open_doc(AccountId, <<"monthly_rollup">>) of
+        {'ok', CurrDoc} ->
+            NewDoc = kz_json:set_value(<<"pvt_amount">>, Amount, CurrDoc),
+            case kazoo_modb:save_doc(AccountId, NewDoc) of
+                {'ok', _} -> Amount;
+                _ -> 'error'
+            end;
+        _ -> 'not_found'
+    end;
+set_bom_balance(_Amount, _AccountId) ->
+    'not_integer'.

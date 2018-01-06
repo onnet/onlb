@@ -10,6 +10,7 @@
         ,bom_balance/1
         ,calc_curr_month_exp/1
         ,calc_prev_month_exp/1
+        ,is_prepaid/1
         ]).
 
 -include_lib("onlb.hrl").
@@ -163,5 +164,17 @@ calc_prev_month_exp(AccountId) ->
             case mysql_poolboy:query(?LB_MYSQL_POOL, QueryString) of
                 {ok,_,[[Amount]]} -> Amount;
                 _ -> 'undefined'
+            end
+    end.
+
+-spec is_prepaid(ne_binary()) -> boolean().
+is_prepaid(AccountId) ->
+    case lbuid_by_uuid(AccountId) of
+        'undefined' -> 'true';
+        UID ->
+            QueryString = <<"SELECT 1 FROM tarifs, vgroups where tarifs.tar_id = vgroups.tar_id and vgroups.uid = ?  and tarifs.act_block = 2 limit 1">>,
+            case mysql_poolboy:query(?LB_MYSQL_POOL, QueryString, [UID]) of
+                {ok,_,[[]]} -> 'false';
+                _ -> 'true'
             end
     end.

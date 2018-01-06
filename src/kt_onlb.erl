@@ -223,12 +223,12 @@ balance_comparison(_, [SubAccountId | DescendantsIds]) ->
         try kz_term:to_float(CurrentKazooBalance) - kz_term:to_float(CurrentLbBalance) catch _:_ -> 'math_error' end,
     {[SubAccountId
      ,kz_account:name(JObj)
-     ,BOM_KazooBalance
-     ,BOM_LbBalance
-     ,BOM_Difference
-     ,CurrentKazooBalance
-     ,CurrentLbBalance
-     ,CurrentDifference
+     ,try onbill_util:price_round(BOM_KazooBalance) catch _:_ -> BOM_KazooBalance end
+     ,try onbill_util:price_round(BOM_LbBalance) catch _:_ -> BOM_LbBalance end
+     ,try onbill_util:price_round(BOM_Difference) catch _:_ -> BOM_Difference end
+     ,try onbill_util:price_round(CurrentKazooBalance) catch _:_ -> CurrentKazooBalance end
+     ,try onbill_util:price_round(CurrentLbBalance) catch _:_ -> CurrentLbBalance end
+     ,try onbill_util:price_round(CurrentDifference) catch _:_ -> CurrentDifference end
      ], DescendantsIds}.
 
 -spec credit_comparison(kz_tasks:extra_args(), kz_tasks:iterator()) -> kz_tasks:iterator().
@@ -243,8 +243,9 @@ credit_comparison(_, [SubAccountId | DescendantsIds]) ->
         try kz_term:to_float(KazooCredit) - kz_term:to_float(LbCredit) catch _:_ -> 'math_error' end,
     {[SubAccountId
      ,kz_account:name(JObj)
-     ,KazooCredit
-     ,LbCredit
+     ,try onbill_util:price_round(KazooCredit) catch _:_ -> KazooCredit end
+     ,try onbill_util:price_round(LbCredit) catch _:_ -> LbCredit end
+     ,try onbill_util:price_round(Difference) catch _:_ -> Difference end
      ,Difference
      ], DescendantsIds}.
 
@@ -261,7 +262,8 @@ usage_comparison(_, [SubAccountId | DescendantsIds]) ->
     {[SubAccountId
      ,kz_account:name(JObj)
      ,KazooUsage
-     ,LbUsage
+     ,try onbill_util:price_round(LbUsage) catch _:_ -> LbUsage end
+     ,try onbill_util:price_round(Difference) catch _:_ -> Difference end
      ,Difference
      ], DescendantsIds}.
 

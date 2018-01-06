@@ -132,6 +132,9 @@ output_header(<<"credit_comparison">>) ->
 output_header(<<"usage_comparison">>) ->
     [<<"account_id">>
     ,<<"account_name">>
+    ,<<"prevmonth_kazoo_usage">>
+    ,<<"prevmonth_lb_usage">>
+    ,<<"prevmonth_difference">>
     ,<<"kazoo_usage">>
     ,<<"lb_usage">>
     ,<<"difference">>
@@ -254,12 +257,21 @@ usage_comparison(#{account_id := AccountId}, init) ->
 usage_comparison(_, []) -> stop;
 usage_comparison(_, [SubAccountId | DescendantsIds]) ->
     {'ok', JObj} = kz_account:fetch(SubAccountId),
+    {{Y,M,_}, _ } = calendar:gregorian_seconds_to_datetime(kz_time:current_tstamp()),
+    {PY, PM} = onbill_util:prev_month(Y, M),
+    PrevMonthKazooUsage = wht_util:units_to_dollars(summ_transactions(filter_transactions(<<"debit">>, fetch_transactions_docs(SubAccountId, PY, PM)))),
+    PrevMonthLbUsage = onlb_sql:calc_prev_month_exp(SubAccountId),
+    PrevMonthDifference =
+        try kz_term:to_float(PrevMonthKazooUsage) - kz_term:to_float(PrevMonthLbUsage) catch _:_ -> 'math_error' end,
     KazooUsage = wht_util:units_to_dollars(summ_transactions(filter_transactions(<<"debit">>, fetch_transactions_docs(SubAccountId)))),
     LbUsage = onlb_sql:calc_curr_month_exp(SubAccountId),
     Difference =
         try kz_term:to_float(KazooUsage) - kz_term:to_float(LbUsage) catch _:_ -> 'math_error' end,
     {[SubAccountId
      ,kz_account:name(JObj)
+     ,PrevMonthKazooUsage
+     ,try onbill_util:price_round(PrevMonthLbUsage) catch _:_ -> PrevMonthLbUsage end
+     ,try onbill_util:price_round(PrevMonthDifference) catch _:_ -> PrevMonthDifference end
      ,KazooUsage
      ,try onbill_util:price_round(LbUsage) catch _:_ -> LbUsage end
      ,try onbill_util:price_round(Difference) catch _:_ -> Difference end
@@ -560,7 +572,16 @@ remove_periodic_fees_from_db([DescendantId | DescendantsIds]) ->
 
 -spec fetch_transactions_docs(ne_binary()) -> kz_json:objects().
 fetch_transactions_docs(AccountId) ->
-    case kazoo_modb:get_results(AccountId, <<"transactions/by_timestamp">>, ['include_docs']) of
+    {{Year,Month,_}, _ } = calendar:gregorian_seconds_to_datetime(kz_time:current_tstamp()),
+    fetch_transactions_docs(AccountId, Year, Month).
+
+-spec fetch_transactions_docs(ne_binary(), kz_year(), kz_month()) -> kz_json:objects().
+fetch_transactions_docs(AccountId, Year, Month) ->
+    ViewOptions = [{'year', Year}
+                  ,{'month', Month}
+                  ,'include_docs'
+                  ],
+    case kazoo_modb:get_results(AccountId, <<"transactions/by_timestamp">>, ViewOptions) of
         {'error', _} -> [];
         {'ok', ViewRes} -> [kz_json:get_value(<<"doc">>, JObj) || JObj <- ViewRes]
     end.

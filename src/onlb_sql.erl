@@ -9,6 +9,7 @@
         ,curr_month_credit/1
         ,bom_balance/1
         ,calc_curr_month_exp/1
+        ,calc_prev_month_exp/1
         ]).
 
 -include_lib("onlb.hrl").
@@ -150,5 +151,17 @@ calc_curr_month_exp(AccountId) ->
                         {ok,_,[[Amount]]} -> Amount;
                         _ -> 'undefined'
                     end
+            end
+    end.
+
+-spec calc_prev_month_exp(ne_binary()) -> any().
+calc_prev_month_exp(AccountId) ->
+    case lbuid_by_uuid(AccountId) of
+        'undefined' -> 'undefined';
+        UID ->
+            QueryString = io_lib:format("Select COALESCE(ifnull((SELECT sum(amount) FROM  day where Month(timefrom) = Month(DATE_ADD(Now(), INTERVAL -1 MONTH)) and Year(timefrom) = Year(DATE_ADD(Now(), INTERVAL -1 MONTH)) and uid = ~p),0) + (Select sum(amount) from charges where agrm_id = (SELECT agrm_id FROM agreements where uid = ~p and oper_id = 1 and archive = 0) and Month(period) = Month(DATE_ADD(Now(), INTERVAL -1 MONTH)) and Year(period) = Year(DATE_ADD(Now(), INTERVAL -1 MONTH))),0)",[UID,UID]),
+            case mysql_poolboy:query(?LB_MYSQL_POOL, QueryString) of
+                {ok,_,[[Amount]]} -> Amount;
+                _ -> 'undefined'
             end
     end.

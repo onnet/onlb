@@ -302,7 +302,7 @@ sync_bom_balance(_, [SubAccountId | DescendantsIds]) ->
         case AccountType of
             <<"POS">> ->
                 LB_BOM_Balance = onlb_sql:calc_prev_month_exp(SubAccountId),
-                try kz_term:to_integer(wht_util:dollars_to_units(LB_BOM_Balance)) catch _:_ -> LB_BOM_Balance end;
+                try -1 * kz_term:to_integer(wht_util:dollars_to_units(LB_BOM_Balance)) catch _:_ -> LB_BOM_Balance end;
             <<"PRE">> ->
                 LB_BOM_Balance = onlb_sql:bom_balance(SubAccountId),
                 try kz_term:to_integer(wht_util:dollars_to_units(LB_BOM_Balance)) catch _:_ -> LB_BOM_Balance end

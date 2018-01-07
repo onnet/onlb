@@ -630,14 +630,16 @@ summ_transactions(TrDocs) ->
     lists:foldl(fun(X, Acc) -> Acc + kz_json:get_integer_value(<<"pvt_amount">>, X, 0) end, 0, TrDocs).
 
 set_bom_balance(Amount, AccountId) when is_integer(Amount) ->
+    AccountMODb = kazoo_modb:get_modb(AccountId),
+    EncodedMODb = kz_util:format_account_modb(AccountMODb, 'encoded'),
+    kz_datamgr:del_doc(EncodedMODb, <<"monthly_rollup">>),
+    timer:sleep(500),
+    wht_util:rollup(AccountId, Amount),
     case kazoo_modb:open_doc(AccountId, <<"monthly_rollup">>) of
         {'ok', CurrDoc} ->
-            NewDoc = kz_json:set_value(<<"pvt_amount">>, Amount, CurrDoc),
-            case kazoo_modb:save_doc(AccountId, NewDoc) of
-                {'ok', _} -> Amount;
-                _ -> 'error'
-            end;
-        _ -> 'not_found'
+            kz_json:get_value(<<"pvt_amount">>, CurrDoc);
+        {'error', 'not_found'} -> 'not_found';
+        _ -> 'error'
     end;
 set_bom_balance(_Amount, _AccountId) ->
     'not_integer'.

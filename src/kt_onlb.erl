@@ -15,9 +15,9 @@
         ,credit_comparison/2
         ,usage_comparison/2
         ,sync_bom_balance/2
+        ,sync_agrm_data/2
         ,import_periodic_fees/3
         ,import_accounts/3
-        ,import_onbill_data1/3
         ,is_allowed/1
         ]).
 
@@ -36,9 +36,9 @@
                  ,<<"credit_comparison">>
                  ,<<"usage_comparison">>
                  ,<<"sync_bom_balance">>
+                 ,<<"sync_agrm_data">>
                  ,<<"import_periodic_fees">>
                  ,<<"import_accounts">>
-                 ,<<"import_onbill_data1">>
                  ]).
 
 -define(IMPORT_PERIODIC_FEES_DOC_FIELDS
@@ -147,6 +147,12 @@ output_header(<<"sync_bom_balance">>) ->
     ,<<"account_name">>
     ,<<"account_type">>
     ,<<"balance_set">>
+    ];
+
+output_header(<<"sync_agrm_data">>) ->
+    [<<"account_id">>
+    ,<<"account_name">>
+    ,<<"result">>
     ].
 
 -spec help(kz_json:object()) -> kz_json:object().
@@ -181,6 +187,11 @@ action(<<"sync_bom_balance">>) ->
     ,{<<"doc">>, <<"Just an experimentsl feature.">>}
     ];
 
+action(<<"sync_agrm_data">>) ->
+    [{<<"description">>, <<"Extract LanBilling's agreements number/date to Kazoo">>}
+    ,{<<"doc">>, <<"Just an experimentsl feature.">>}
+    ];
+
 action(<<"import_periodic_fees">>) ->
     Mandatory = ?IMPORT_PERIODIC_FEES_MANDATORY_FIELDS,
     Optional = ?IMPORT_PERIODIC_FEES_DOC_FIELDS -- Mandatory,
@@ -198,17 +209,6 @@ action(<<"import_accounts">>) ->
 
     [{<<"description">>, <<"Bulk-create accounts using account_names list">>}
     ,{<<"doc">>, <<"Creates accounts from file">>}
-    ,{<<"expected_content">>, <<"text/csv">>}
-    ,{<<"mandatory">>, Mandatory}
-    ,{<<"optional">>, Optional}
-    ];
-
-action(<<"import_onbill_data1">>) ->
-    Mandatory = ?IMPORT_MANDATORY_ONBILL_DATA1,
-    Optional = ?IMPORT_ONBILL_DATA1 -- Mandatory,
-
-    [{<<"description">>, <<"Bulk-import accounts company data for invoice generating">>}
-    ,{<<"doc">>, <<"Imports onbill data from file">>}
     ,{<<"expected_content">>, <<"text/csv">>}
     ,{<<"mandatory">>, Mandatory}
     ,{<<"optional">>, Optional}
@@ -314,6 +314,32 @@ sync_bom_balance(_, [SubAccountId | DescendantsIds]) ->
      ,try onbill_util:price_round(wht_util:units_to_dollars(Result)) catch _:_ -> Result end
      ], DescendantsIds}.
 
+-spec sync_agrm_data(kz_tasks:extra_args(), kz_tasks:iterator()) -> kz_tasks:iterator().
+sync_agrm_data(#{account_id := AccountId}, init) ->
+    {'ok', get_children(AccountId)};
+sync_agrm_data(_, []) -> stop;
+sync_agrm_data(_, [SubAccountId | DescendantsIds]) ->
+    {'ok', JObj} = kz_account:fetch(SubAccountId),
+    AgrmsList = onlb_sql:agreements_data(SubAccountId),
+    case collect_agreements_data(AgrmsList, []) of
+        [] ->
+            {[SubAccountId ,kz_account:name(JObj) , 'no_agreements'], DescendantsIds};
+        Values when is_list(Values) ->
+            DbName = kz_util:format_account_id(SubAccountId,'encoded'),
+            case kz_datamgr:open_doc(DbName, ?ONBILL_DOC) of
+                {ok, Doc} ->
+                    NewDoc = kz_json:set_values(Values, Doc),
+                    kz_datamgr:ensure_saved(DbName, NewDoc),
+                    {[SubAccountId ,kz_account:name(JObj) , 'ok'], DescendantsIds};
+                {'error', 'not_found'} ->
+                    {[SubAccountId ,kz_account:name(JObj) , 'onbill_doc_not_found'], DescendantsIds};
+                _ ->
+                    {[SubAccountId ,kz_account:name(JObj) , 'error'], DescendantsIds}
+            end;
+        _ ->
+            {[SubAccountId ,kz_account:name(JObj) , 'error'], DescendantsIds}
+    end.
+
 -spec import_periodic_fees(kz_tasks:extra_args(), kz_tasks:iterator(), kz_tasks:args()) ->
                     {kz_tasks:return(), sets:set()}.
 import_periodic_fees(ExtraArgs=#{account_id := ResellerId}, init, Args) ->
@@ -401,77 +427,6 @@ import_accounts(#{account_id := ResellerId
             'account_not_created'
     end.
 
--spec import_onbill_data1(kz_tasks:extra_args(), kz_tasks:iterator(), kz_tasks:args()) ->
-                    {kz_tasks:return(), sets:set()}.
-import_onbill_data1(ExtraArgs, init, Args) ->
-    case is_allowed(ExtraArgs) of
-        'true' ->
-            lager:info("import_onbill_data1 is allowed, continuing"),
-            kz_datamgr:suppress_change_notice(),
-            IterValue = sets:new(),
-            import_onbill_data1(ExtraArgs, IterValue, Args);
-        'false' ->
-            lager:warning("import_onbill_data1 is forbidden for account ~s, auth account ~s"
-                         ,[maps:get('account_id', ExtraArgs)
-                          ,maps:get('auth_account_id', ExtraArgs)
-                          ]
-                         ),
-            {<<"task execution is forbidden">>, 'stop'}
-    end;
-import_onbill_data1(#{account_id := _ResellerId
-        ,auth_account_id := _AuthAccountId
-        }
-      ,_AccountIds
-      ,_Args=#{<<"account_id">> := AccountId
-              ,<<"account_name">> := AccountName
-              ,<<"account_inn">> := AccountINN
-              ,<<"account_kpp">> := AccountKPP
-              ,<<"prepaid">> := _Prepaid
-              ,<<"billing_address">> := BillingAddress
-              ,<<"agrm_number">> := AgrmNumber
-              ,<<"agrm_date">> := AgrmDate
-              ,<<"agrm_type_id">> := AgrmTypeId
-              }
-      ) ->
-    case binary:split(BillingAddress, [<<"^*^">>], [global]) of
-        [A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11] -> ok;
-        [A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, _, A11] -> ok
-    end,
-    AA4 = case A2 == A4 of
-              'true' -> <<>>;
-              'false' -> A4
-          end,
-    Values = props:filter_empty(
-        [{<<"_id">>, ?ONBILL_DOC}
-        ,{<<"pvt_type">>, ?ONBILL_DOC}
-        ,{<<"pvt_account_id">>, AccountId}
-        ,{<<"account_name">>, AccountName}
-        ,{<<"account_inn">>, AccountINN}
-        ,{<<"account_kpp">>, AccountKPP}
-        ,{[<<"billing_address">>,<<"line1">>]
-         ,maybe_format_address_element([A1, A2], A11)
-         }
-        ,{[<<"billing_address">>,<<"line2">>]
-         ,maybe_format_address_element([AA4, A5, A6], A3)
-         }
-        ,{[<<"billing_address">>,<<"line3">>]
-         ,maybe_format_address_element([A8, A9, A10], A7)
-         }
-        ] ++ agrm_vals(AgrmNumber, AgrmDate, AgrmTypeId)),
-    DbName = kz_util:format_account_id(AccountId,'encoded'),
-    case kz_datamgr:open_doc(DbName, ?ONBILL_DOC) of
-        {ok, Doc} ->
-            NewDoc = kz_json:set_values(Values, Doc),
-            kz_datamgr:ensure_saved(DbName, NewDoc),
-            AccountId;
-        {'error', 'not_found'} ->
-            NewDoc = kz_json:set_values(Values ,kz_json:new()),
-            kz_datamgr:ensure_saved(DbName, NewDoc),
-            AccountId;
-        _ ->
-            'onbill_data_not_added'
-    end.
-
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
@@ -555,43 +510,6 @@ send_email(Context) ->
           ],
     kapps_notify_publisher:cast(Req, fun kapi_notifications:publish_new_user/1).
 
--spec maybe_format_address_element(any(), any()) -> 'ok'.
-maybe_format_address_element([], Acc) ->
-    Acc;
-maybe_format_address_element([<<>>], Acc) ->
-    Acc;
-maybe_format_address_element([H], <<>>) ->
-    H;
-maybe_format_address_element([H], Acc) ->
-    <<Acc/binary, ", ", H/binary>>;
-maybe_format_address_element([<<>>|T], Acc) ->
-    maybe_format_address_element(T, Acc);
-maybe_format_address_element([H|T], Acc) when Acc == <<>> ->
-    maybe_format_address_element(T, <<H/binary>>);
-maybe_format_address_element([H|T], Acc) ->
-    maybe_format_address_element(T, <<Acc/binary, ", ", H/binary>>).
-
-format_agrm_date(<<YYYY:4/binary, "-", MM:2/binary, "-", DD:2/binary>>) ->
-    <<DD/binary, ".", MM/binary, ".", YYYY/binary>>;
-format_agrm_date(AgrmDate) ->
-    AgrmDate.
-
-agrm_vals(_, _, 'undefined') ->
-    [];
-agrm_vals(<<"I0#", AgrmNumber/binary>>, AgrmDate, AgrmTypeId) ->
-    agrm_vals(AgrmNumber, AgrmDate, AgrmTypeId);
-agrm_vals(<<"0WG#", AgrmNumber/binary>>, AgrmDate, AgrmTypeId) ->
-    agrm_vals(AgrmNumber, AgrmDate, AgrmTypeId);
-agrm_vals(AgrmNumber, AgrmDate, <<"1">>) ->
-    [{[<<"agrm">>,<<"onnet">>,<<"number">>], AgrmNumber}
-    ,{[<<"agrm">>,<<"onnet">>,<<"date">>], format_agrm_date(AgrmDate)}];
-agrm_vals(AgrmNumber, AgrmDate, <<"2">>) ->
-    [{[<<"agrm">>,<<"beeline_spb">>,<<"number">>], <<"I0#", AgrmNumber/binary>>}
-    ,{[<<"agrm">>,<<"beeline_spb">>,<<"date">>], format_agrm_date(AgrmDate)}];
-agrm_vals(AgrmNumber, AgrmDate, <<"3">>) ->
-    [{[<<"agrm">>,<<"beeline_msk">>,<<"number">>], <<"0WG#", AgrmNumber/binary>>}
-    ,{[<<"agrm">>,<<"beeline_msk">>,<<"date">>], format_agrm_date(AgrmDate)}].
-
 remove_periodic_fees_from_db([]) ->
     'ok';
 remove_periodic_fees_from_db([DescendantId | DescendantsIds]) ->
@@ -658,3 +576,21 @@ account_type(AccountId) ->
         'true' -> <<"PRE">>;
         'false' -> <<"POS">>
     end.
+
+collect_agreements_data([], Acc) ->
+    Acc;
+collect_agreements_data([[OperId, AgrmNumber, {Y,M,D}]|Tail], Acc) ->
+    case kapps_config:get_binary(<<"onlb">>, [<<"opers_to_carriers">>, kz_term:to_binary(OperId)]) of
+        'undefined' ->
+            collect_agreements_data(Tail, Acc);
+        CarrierId ->
+            Values =
+                [{[<<"agrm">>, CarrierId, <<"number">>], AgrmNumber}
+                ,{[<<"agrm">>, CarrierId, <<"date_json">>, <<"day">>], D}
+                ,{[<<"agrm">>, CarrierId, <<"date_json">>, <<"month">>], M}
+                ,{[<<"agrm">>, CarrierId, <<"date_json">>, <<"year">>], Y}
+                ],
+            collect_agreements_data(Tail, Acc ++ Values)
+    end;
+collect_agreements_data(_, Acc) ->
+    Acc.

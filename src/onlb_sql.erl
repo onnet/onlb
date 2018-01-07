@@ -11,6 +11,7 @@
         ,calc_curr_month_exp/1
         ,calc_prev_month_exp/1
         ,is_prepaid/1
+        ,agreements_data/1
         ]).
 
 -include_lib("onlb.hrl").
@@ -176,5 +177,17 @@ is_prepaid(AccountId) ->
             case mysql_poolboy:query(?LB_MYSQL_POOL, QueryString, [UID]) of
                 {ok,_,[]} -> 'false';
                 _ -> 'true'
+            end
+    end.
+
+-spec agreements_data(ne_binary()) -> kz_proplists().
+agreements_data(AccountId) ->
+    case lbuid_by_uuid(AccountId) of
+        'undefined' -> 'undefined';
+        UID ->
+            QueryString = <<"select oper_id,number,date from agreements where uid = ?">>,
+            case mysql_poolboy:query(?LB_MYSQL_POOL, QueryString, [UID]) of
+                {ok,_,Res} -> Res;
+                _ -> []
             end
     end.

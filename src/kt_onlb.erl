@@ -637,7 +637,11 @@ set_bom_balance(Amount, AccountId) when is_integer(Amount) ->
     wht_util:rollup(AccountId, Amount),
     case kazoo_modb:open_doc(AccountId, <<"monthly_rollup">>) of
         {'ok', CurrDoc} ->
-            kz_json:get_value(<<"pvt_amount">>, CurrDoc);
+            Transaction = kz_transaction:from_json(CurrDoc),
+            case kz_transaction:type(Transaction) of
+                <<"debit">> -> -1 * kz_transaction:amount(Transaction);
+                <<"credit">> -> kz_transaction:amount(Transaction)
+            end;
         {'error', 'not_found'} -> 'not_found';
         _ -> 'error'
     end;

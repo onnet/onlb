@@ -145,6 +145,7 @@ output_header(<<"usage_comparison">>) ->
 output_header(<<"sync_bom_balance">>) ->
     [<<"account_id">>
     ,<<"account_name">>
+    ,<<"account_type">>
     ,<<"balance_set">>
     ].
 
@@ -296,16 +297,20 @@ sync_bom_balance(#{account_id := AccountId}, init) ->
 sync_bom_balance(_, []) -> stop;
 sync_bom_balance(_, [SubAccountId | DescendantsIds]) ->
     {'ok', JObj} = kz_account:fetch(SubAccountId),
+    AccountType = account_type(SubAccountId),
     Balance =
-        case onlb_sql:is_prepaid(SubAccountId) of
-            'false' -> 0;
-            'true' ->
+        case AccountType of
+            <<"POS">> ->
+                LB_BOM_Balance = onlb_sql:calc_prev_month_exp(SubAccountId),
+                try kz_term:to_integer(wht_util:dollars_to_units(LB_BOM_Balance)) catch _:_ -> LB_BOM_Balance end;
+            <<"PRE">> ->
                 LB_BOM_Balance = onlb_sql:bom_balance(SubAccountId),
                 try kz_term:to_integer(wht_util:dollars_to_units(LB_BOM_Balance)) catch _:_ -> LB_BOM_Balance end
         end,
     Result = set_bom_balance(Balance, SubAccountId),
     {[SubAccountId
      ,kz_account:name(JObj)
+     ,AccountType
      ,try onbill_util:price_round(wht_util:units_to_dollars(Result)) catch _:_ -> Result end
      ], DescendantsIds}.
 
@@ -647,3 +652,9 @@ set_bom_balance(Amount, AccountId) when is_integer(Amount) ->
     end;
 set_bom_balance(_Amount, _AccountId) ->
     'not_integer'.
+
+account_type(AccountId) ->
+    case onlb_sql:is_prepaid(AccountId) of
+        'true' -> <<"PRE">>;
+        'false' -> <<"POS">>
+    end.

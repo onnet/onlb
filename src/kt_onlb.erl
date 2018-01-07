@@ -306,7 +306,7 @@ sync_bom_balance(_, [SubAccountId | DescendantsIds]) ->
     Result = set_bom_balance(Balance, SubAccountId),
     {[SubAccountId
      ,kz_account:name(JObj)
-     ,Result
+     ,try onbill_util:price_round(wht_util:units_to_dollars(Result)) catch _:_ -> Result end
      ], DescendantsIds}.
 
 -spec import_periodic_fees(kz_tasks:extra_args(), kz_tasks:iterator(), kz_tasks:args()) ->

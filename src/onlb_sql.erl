@@ -174,7 +174,7 @@ is_prepaid(AccountId) ->
         UID ->
             QueryString = <<"SELECT 1 FROM tarifs, vgroups where tarifs.tar_id = vgroups.tar_id and vgroups.uid = ?  and tarifs.act_block = 2 limit 1">>,
             case mysql_poolboy:query(?LB_MYSQL_POOL, QueryString, [UID]) of
-                {ok,_,[[]]} -> 'false';
+                {ok,_,[]} -> 'false';
                 _ -> 'true'
             end
     end.

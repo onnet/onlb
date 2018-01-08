@@ -16,6 +16,7 @@
         ,usage_comparison/2
         ,sync_bom_balance/2
         ,sync_agrm_data/2
+        ,sync_addresses/2
         ,import_periodic_fees/3
         ,import_accounts/3
         ,is_allowed/1
@@ -37,6 +38,7 @@
                  ,<<"usage_comparison">>
                  ,<<"sync_bom_balance">>
                  ,<<"sync_agrm_data">>
+                 ,<<"sync_addresses">>
                  ,<<"import_periodic_fees">>
                  ,<<"import_accounts">>
                  ]).
@@ -153,6 +155,12 @@ output_header(<<"sync_agrm_data">>) ->
     [<<"account_id">>
     ,<<"account_name">>
     ,<<"result">>
+    ];
+
+output_header(<<"sync_addresses">>) ->
+    [<<"account_id">>
+    ,<<"account_name">>
+    ,<<"result">>
     ].
 
 -spec help(kz_json:object()) -> kz_json:object().
@@ -189,6 +197,11 @@ action(<<"sync_bom_balance">>) ->
 
 action(<<"sync_agrm_data">>) ->
     [{<<"description">>, <<"Extract LanBilling's agreements number/date to Kazoo">>}
+    ,{<<"doc">>, <<"Just an experimentsl feature.">>}
+    ];
+
+action(<<"sync_addresses">>) ->
+    [{<<"description">>, <<"Extract LanBilling's addresses registered/office/pobox to Kazoo">>}
     ,{<<"doc">>, <<"Just an experimentsl feature.">>}
     ];
 
@@ -324,6 +337,32 @@ sync_agrm_data(_, [SubAccountId | DescendantsIds]) ->
     case collect_agreements_data(AgrmsList, []) of
         [] ->
             {[SubAccountId ,kz_account:name(JObj) , 'no_agreements'], DescendantsIds};
+        Values when is_list(Values) ->
+            DbName = kz_util:format_account_id(SubAccountId,'encoded'),
+            case kz_datamgr:open_doc(DbName, ?ONBILL_DOC) of
+                {ok, Doc} ->
+                    NewDoc = kz_json:set_values(Values, Doc),
+                    kz_datamgr:ensure_saved(DbName, NewDoc),
+                    {[SubAccountId ,kz_account:name(JObj) , 'ok'], DescendantsIds};
+                {'error', 'not_found'} ->
+                    {[SubAccountId ,kz_account:name(JObj) , 'onbill_doc_not_found'], DescendantsIds};
+                _ ->
+                    {[SubAccountId ,kz_account:name(JObj) , 'error'], DescendantsIds}
+            end;
+        _ ->
+            {[SubAccountId ,kz_account:name(JObj) , 'error'], DescendantsIds}
+    end.
+
+-spec sync_addresses(kz_tasks:extra_args(), kz_tasks:iterator()) -> kz_tasks:iterator().
+sync_addresses(#{account_id := AccountId}, init) ->
+    {'ok', get_children(AccountId)};
+sync_addresses(_, []) -> stop;
+sync_addresses(_, [SubAccountId | DescendantsIds]) ->
+    {'ok', JObj} = kz_account:fetch(SubAccountId),
+    AddressesList = onlb_sql:addresses_data(SubAccountId),
+    case collect_address_data(AddressesList, []) of
+        [] ->
+            {[SubAccountId ,kz_account:name(JObj) , 'no_addresses'], DescendantsIds};
         Values when is_list(Values) ->
             DbName = kz_util:format_account_id(SubAccountId,'encoded'),
             case kz_datamgr:open_doc(DbName, ?ONBILL_DOC) of
@@ -594,3 +633,44 @@ collect_agreements_data([[OperId, AgrmNumber, {Y,M,D}]|Tail], Acc) ->
     end;
 collect_agreements_data(_, Acc) ->
     Acc.
+
+collect_address_data([], Acc) ->
+    Acc;
+collect_address_data([[AddrId, AddrLine]|Tail], Acc) ->
+    case kapps_config:get_binary(<<"onlb">>, [<<"address_types">>, kz_term:to_binary(AddrId)]) of
+        'undefined' ->
+            collect_agreements_data(Tail, Acc);
+        AddrType ->
+            case binary:split(AddrLine, [<<",">>], [global]) of
+                [A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11] -> ok;
+                [A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, _, A11] -> ok
+            end,
+            AA4 = case A2 == A4 of
+                      'true' -> <<>>;
+                      'false' -> A4
+                  end,
+            Values =
+                [{[<<"address">>, AddrType, <<"line3">>], maybe_format_address_element([A8, A9, A10], A7)}
+                ,{[<<"address">>, AddrType, <<"line2">>], maybe_format_address_element([AA4, A5, A6], A3)}
+                ,{[<<"address">>, AddrType, <<"line1">>], maybe_format_address_element([A1, A2], A11)}
+                ],
+            collect_address_data(Tail, Acc ++ Values)
+    end;
+collect_address_data(_, Acc) ->
+    Acc.
+
+-spec maybe_format_address_element(any(), any()) -> 'ok'.
+maybe_format_address_element([], Acc) ->
+    Acc;
+maybe_format_address_element([<<>>], Acc) ->
+    Acc;
+maybe_format_address_element([H], <<>>) ->
+    H;
+maybe_format_address_element([H], Acc) ->
+    <<Acc/binary, ", ", H/binary>>;
+maybe_format_address_element([<<>>|T], Acc) ->
+    maybe_format_address_element(T, Acc);
+maybe_format_address_element([H|T], Acc) when Acc == <<>> ->
+    maybe_format_address_element(T, <<H/binary>>);
+maybe_format_address_element([H|T], Acc) ->
+    maybe_format_address_element(T, <<Acc/binary, ", ", H/binary>>).

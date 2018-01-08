@@ -11,9 +11,9 @@
         ]).
 
 %% Appliers
--export([balance_comparison/2
-        ,credit_comparison/2
-        ,usage_comparison/2
+-export([compare_balances/2
+        ,compare_credits/2
+        ,compare_usage/2
         ,sync_bom_balance/2
         ,sync_agrm_data/2
         ,sync_addresses/2
@@ -33,9 +33,9 @@
 -include("onlb.hrl").
 
 -define(CATEGORY, "onlb").
--define(ACTIONS, [<<"balance_comparison">>
-                 ,<<"credit_comparison">>
-                 ,<<"usage_comparison">>
+-define(ACTIONS, [<<"compare_balances">>
+                 ,<<"compare_credits">>
+                 ,<<"compare_usage">>
                  ,<<"sync_bom_balance">>
                  ,<<"sync_agrm_data">>
                  ,<<"sync_addresses">>
@@ -114,7 +114,7 @@ init() ->
     tasks_bindings:bind_actions(<<"tasks."?CATEGORY>>, ?MODULE, ?ACTIONS).
 
 -spec output_header(ne_binary()) -> kz_csv:row().
-output_header(<<"balance_comparison">>) ->
+output_header(<<"compare_balances">>) ->
     [<<"account_id">>
     ,<<"account_name">>
     ,<<"bom_kazoo_balance">>
@@ -125,7 +125,7 @@ output_header(<<"balance_comparison">>) ->
     ,<<"current_difference">>
     ];
 
-output_header(<<"credit_comparison">>) ->
+output_header(<<"compare_credits">>) ->
     [<<"account_id">>
     ,<<"account_name">>
     ,<<"kazoo_credit">>
@@ -133,7 +133,7 @@ output_header(<<"credit_comparison">>) ->
     ,<<"difference">>
     ];
 
-output_header(<<"usage_comparison">>) ->
+output_header(<<"compare_usage">>) ->
     [<<"account_id">>
     ,<<"account_name">>
     ,<<"prevmonth_kazoo_usage">>
@@ -175,17 +175,17 @@ help(JObj, <<?CATEGORY>>=Category, Action) ->
     kz_json:set_value([Category, Action], kz_json:from_list(action(Action)), JObj).
 
 -spec action(ne_binary()) -> kz_proplist().
-action(<<"balance_comparison">>) ->
+action(<<"compare_balances">>) ->
     [{<<"description">>, <<"compare Kazoo and LanBilling balances">>}
     ,{<<"doc">>, <<"Just an experimentsl feature.">>}
     ];
 
-action(<<"credit_comparison">>) ->
+action(<<"compare_credits">>) ->
     [{<<"description">>, <<"compare Kazoo and LanBilling current month total credit">>}
     ,{<<"doc">>, <<"Just an experimentsl feature.">>}
     ];
 
-action(<<"usage_comparison">>) ->
+action(<<"compare_usage">>) ->
     [{<<"description">>, <<"compare Kazoo and LanBilling current month charges">>}
     ,{<<"doc">>, <<"Just an experimentsl feature.">>}
     ];
@@ -232,11 +232,11 @@ action(<<"import_accounts">>) ->
 
 %%% Appliers
 
--spec balance_comparison(kz_tasks:extra_args(), kz_tasks:iterator()) -> kz_tasks:iterator().
-balance_comparison(#{account_id := AccountId}, init) ->
+-spec compare_balances(kz_tasks:extra_args(), kz_tasks:iterator()) -> kz_tasks:iterator().
+compare_balances(#{account_id := AccountId}, init) ->
     {'ok', get_children(AccountId)};
-balance_comparison(_, []) -> stop;
-balance_comparison(_, [SubAccountId | DescendantsIds]) ->
+compare_balances(_, []) -> stop;
+compare_balances(_, [SubAccountId | DescendantsIds]) ->
     {'ok', JObj} = kz_account:fetch(SubAccountId),
     {{Y,M,_}, _ } = calendar:gregorian_seconds_to_datetime(kz_time:current_tstamp()),
     BOM_KazooBalance =
@@ -261,11 +261,11 @@ balance_comparison(_, [SubAccountId | DescendantsIds]) ->
      ,try onbill_util:price_round(CurrentDifference) catch _:_ -> CurrentDifference end
      ], DescendantsIds}.
 
--spec credit_comparison(kz_tasks:extra_args(), kz_tasks:iterator()) -> kz_tasks:iterator().
-credit_comparison(#{account_id := AccountId}, init) ->
+-spec compare_credits(kz_tasks:extra_args(), kz_tasks:iterator()) -> kz_tasks:iterator().
+compare_credits(#{account_id := AccountId}, init) ->
     {'ok', get_children(AccountId)};
-credit_comparison(_, []) -> stop;
-credit_comparison(_, [SubAccountId | DescendantsIds]) ->
+compare_credits(_, []) -> stop;
+compare_credits(_, [SubAccountId | DescendantsIds]) ->
     {'ok', JObj} = kz_account:fetch(SubAccountId),
     KazooCredit = wht_util:units_to_dollars(summ_transactions(filter_transactions(<<"credit">>, fetch_transactions_docs(SubAccountId)))),
     LbCredit = onlb_sql:curr_month_credit(SubAccountId),
@@ -278,11 +278,11 @@ credit_comparison(_, [SubAccountId | DescendantsIds]) ->
      ,try onbill_util:price_round(Difference) catch _:_ -> Difference end
      ], DescendantsIds}.
 
--spec usage_comparison(kz_tasks:extra_args(), kz_tasks:iterator()) -> kz_tasks:iterator().
-usage_comparison(#{account_id := AccountId}, init) ->
+-spec compare_usage(kz_tasks:extra_args(), kz_tasks:iterator()) -> kz_tasks:iterator().
+compare_usage(#{account_id := AccountId}, init) ->
     {'ok', get_children(AccountId)};
-usage_comparison(_, []) -> stop;
-usage_comparison(_, [SubAccountId | DescendantsIds]) ->
+compare_usage(_, []) -> stop;
+compare_usage(_, [SubAccountId | DescendantsIds]) ->
     {'ok', JObj} = kz_account:fetch(SubAccountId),
     {{Y,M,_}, _ } = calendar:gregorian_seconds_to_datetime(kz_time:current_tstamp()),
     {PY, PM} = onbill_util:prev_month(Y, M),

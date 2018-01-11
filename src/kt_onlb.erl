@@ -271,7 +271,12 @@ compare_credits(#{account_id := AccountId}, init) ->
 compare_credits(_, []) -> stop;
 compare_credits(_, [SubAccountId | DescendantsIds]) ->
     {'ok', JObj} = kz_account:fetch(SubAccountId),
-    KazooCredit = wht_util:units_to_dollars(summ_transactions(filter_transactions({<<"pvt_type">>,<<"credit">>}, fetch_view_docs(SubAccountId, ?TRANS_VIEW)))),
+    KazooCredit =
+        wht_util:units_to_dollars(summ_transactions(filter_transactions({<<"pvt_type">>,<<"credit">>}
+                                                                       ,fetch_view_docs(SubAccountId, ?TRANS_VIEW)
+                                                                       )
+                                                   )
+                                 ),
     LbCredit = onlb_sql:curr_month_credit(SubAccountId),
     Difference =
         try kz_term:to_float(KazooCredit) - kz_term:to_float(LbCredit) catch _:_ -> 'math_error' end,
@@ -290,20 +295,50 @@ compare_usage(_, [SubAccountId | DescendantsIds]) ->
     {'ok', JObj} = kz_account:fetch(SubAccountId),
     {{Y,M,_}, _ } = calendar:gregorian_seconds_to_datetime(kz_time:current_tstamp()),
     {PY, PM} = onbill_util:prev_month(Y, M),
-    PrevMonthKazooUsage = wht_util:units_to_dollars(summ_transactions(filter_transactions({<<"pvt_type">>,<<"debit">>}, fetch_view_docs(SubAccountId, ?TRANS_VIEW, PY, PM)))),
+    PrevMonthKazooUsage =
+        wht_util:units_to_dollars(summ_transactions(filter_transactions({<<"pvt_type">>,<<"debit">>}
+                                                                       ,fetch_view_docs(SubAccountId, ?TRANS_VIEW, PY, PM)
+                                                                       )
+                                                   )
+                                 ),
+    PrevMonthKazooLedgers =
+        wht_util:units_to_dollars(summ_transactions(filter_transactions({<<"pvt_ledger_type">>,<<"debit">>}
+                                                                       ,fetch_view_docs(SubAccountId, ?LEDGERS_VIEW, PY, PM)
+                                                                       )
+                                                   )
+                                 ),
     PrevMonthLbUsage = onlb_sql:calc_prev_month_exp(SubAccountId),
     PrevMonthDifference =
-        try kz_term:to_float(PrevMonthKazooUsage) - kz_term:to_float(PrevMonthLbUsage) catch _:_ -> 'math_error' end,
-    KazooUsage = wht_util:units_to_dollars(summ_transactions(filter_transactions({<<"pvt_type">>,<<"debit">>}, fetch_view_docs(SubAccountId, ?TRANS_VIEW)))),
+        try
+          kz_term:to_float(PrevMonthKazooUsage) + kz_term:to_float(PrevMonthKazooLedgers) - kz_term:to_float(PrevMonthLbUsage)
+        catch
+           _:_ -> 'math_error'
+        end,
+    KazooUsage =
+        wht_util:units_to_dollars(summ_transactions(filter_transactions({<<"pvt_type">>,<<"debit">>}
+                                                                       ,fetch_view_docs(SubAccountId, ?TRANS_VIEW)
+                                                                       )
+                                                   )
+                                 ),
+    KazooLedgers =
+        wht_util:units_to_dollars(summ_transactions(filter_transactions({<<"pvt_ledger_type">>,<<"debit">>}
+                                                                       ,fetch_view_docs(SubAccountId, ?LEDGERS_VIEW)
+                                                                       )
+                                                   )
+                                 ),
     LbUsage = onlb_sql:calc_curr_month_exp(SubAccountId),
     Difference =
-        try kz_term:to_float(KazooUsage) - kz_term:to_float(LbUsage) catch _:_ -> 'math_error' end,
+        try
+          kz_term:to_float(KazooUsage) + kz_term:to_float(KazooLedgers) - kz_term:to_float(LbUsage)
+        catch
+           _:_ -> 'math_error'
+        end,
     {[SubAccountId
      ,kz_account:name(JObj)
-     ,try onbill_util:price_round(PrevMonthKazooUsage) catch _:_ -> PrevMonthKazooUsage end
+     ,try onbill_util:price_round(PrevMonthKazooUsage + PrevMonthKazooLedgers) catch _:_ -> PrevMonthKazooUsage end
      ,try onbill_util:price_round(PrevMonthLbUsage) catch _:_ -> PrevMonthLbUsage end
      ,try onbill_util:price_round(PrevMonthDifference) catch _:_ -> PrevMonthDifference end
-     ,try onbill_util:price_round(KazooUsage) catch _:_ -> KazooUsage end
+     ,try onbill_util:price_round(KazooUsage + KazooLedgers) catch _:_ -> KazooUsage end
      ,try onbill_util:price_round(LbUsage) catch _:_ -> LbUsage end
      ,try onbill_util:price_round(Difference) catch _:_ -> Difference end
      ], DescendantsIds}.

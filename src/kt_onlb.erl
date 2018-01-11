@@ -23,7 +23,7 @@
         ]).
 
 %% Dev temp
--export([fetch_transactions_docs/1
+-export([fetch_view_docs/2
         ,filter_transactions/2
         ,summ_transactions/1
         ]).
@@ -33,6 +33,10 @@
 -include("onlb.hrl").
 
 -define(CATEGORY, "onlb").
+
+-define(TRANS_VIEW, <<"transactions/by_timestamp">>).
+-define(LEDGERS_VIEW, <<"ledgers/listing_by_service">>).
+
 -define(ACTIONS, [<<"compare_balances">>
                  ,<<"compare_credits">>
                  ,<<"compare_usage">>
@@ -267,7 +271,7 @@ compare_credits(#{account_id := AccountId}, init) ->
 compare_credits(_, []) -> stop;
 compare_credits(_, [SubAccountId | DescendantsIds]) ->
     {'ok', JObj} = kz_account:fetch(SubAccountId),
-    KazooCredit = wht_util:units_to_dollars(summ_transactions(filter_transactions(<<"credit">>, fetch_transactions_docs(SubAccountId)))),
+    KazooCredit = wht_util:units_to_dollars(summ_transactions(filter_transactions({<<"pvt_type">>,<<"credit">>}, fetch_view_docs(SubAccountId, ?TRANS_VIEW)))),
     LbCredit = onlb_sql:curr_month_credit(SubAccountId),
     Difference =
         try kz_term:to_float(KazooCredit) - kz_term:to_float(LbCredit) catch _:_ -> 'math_error' end,
@@ -286,11 +290,11 @@ compare_usage(_, [SubAccountId | DescendantsIds]) ->
     {'ok', JObj} = kz_account:fetch(SubAccountId),
     {{Y,M,_}, _ } = calendar:gregorian_seconds_to_datetime(kz_time:current_tstamp()),
     {PY, PM} = onbill_util:prev_month(Y, M),
-    PrevMonthKazooUsage = wht_util:units_to_dollars(summ_transactions(filter_transactions(<<"debit">>, fetch_transactions_docs(SubAccountId, PY, PM)))),
+    PrevMonthKazooUsage = wht_util:units_to_dollars(summ_transactions(filter_transactions({<<"pvt_type">>,<<"debit">>}, fetch_view_docs(SubAccountId, ?TRANS_VIEW, PY, PM)))),
     PrevMonthLbUsage = onlb_sql:calc_prev_month_exp(SubAccountId),
     PrevMonthDifference =
         try kz_term:to_float(PrevMonthKazooUsage) - kz_term:to_float(PrevMonthLbUsage) catch _:_ -> 'math_error' end,
-    KazooUsage = wht_util:units_to_dollars(summ_transactions(filter_transactions(<<"debit">>, fetch_transactions_docs(SubAccountId)))),
+    KazooUsage = wht_util:units_to_dollars(summ_transactions(filter_transactions({<<"pvt_type">>,<<"debit">>}, fetch_view_docs(SubAccountId, ?TRANS_VIEW)))),
     LbUsage = onlb_sql:calc_curr_month_exp(SubAccountId),
     Difference =
         try kz_term:to_float(KazooUsage) - kz_term:to_float(LbUsage) catch _:_ -> 'math_error' end,
@@ -564,26 +568,30 @@ remove_periodic_fees_from_db([DescendantId | DescendantsIds]) ->
     timer:sleep(100),
     remove_periodic_fees_from_db(DescendantsIds).
 
--spec fetch_transactions_docs(ne_binary()) -> kz_json:objects().
-fetch_transactions_docs(AccountId) ->
-    {{Year,Month,_}, _ } = calendar:gregorian_seconds_to_datetime(kz_time:current_tstamp()),
-    fetch_transactions_docs(AccountId, Year, Month).
+-spec fetch_view_docs(ne_binary(), ne_binary()) -> kz_json:objects().
+fetch_view_docs(AccountId, View) ->
+    {{Year,Month,_}, _} = calendar:gregorian_seconds_to_datetime(kz_time:current_tstamp()),
+    fetch_view_docs(AccountId, View, Year, Month).
 
--spec fetch_transactions_docs(ne_binary(), kz_year(), kz_month()) -> kz_json:objects().
-fetch_transactions_docs(AccountId, Year, Month) ->
+-spec fetch_view_docs(ne_binary(), ne_binary(), kz_year(), kz_month()) -> kz_json:objects().
+fetch_view_docs(AccountId, View, Year, Month) ->
     ViewOptions = [{'year', Year}
                   ,{'month', Month}
                   ,'include_docs'
                   ],
-    case kazoo_modb:get_results(AccountId, <<"transactions/by_timestamp">>, ViewOptions) of
+    fetch_view_docs(AccountId, View, ViewOptions).
+
+-spec fetch_view_docs(ne_binary(), ne_binary(), kz_proplist()) -> kz_json:objects().
+fetch_view_docs(AccountId, View, ViewOptions) ->
+    case kazoo_modb:get_results(AccountId, View, ViewOptions) of
         {'error', _} -> [];
         {'ok', ViewRes} -> [kz_json:get_value(<<"doc">>, JObj) || JObj <- ViewRes]
     end.
 
--spec filter_transactions(ne_binary(), kz_json:objects()) -> kz_json:objects().
-filter_transactions(TrType, TrDocs) ->
+-spec filter_transactions(tuple(), kz_json:objects()) -> kz_json:objects().
+filter_transactions({K, V}, TrDocs) ->
     [TrDoc || TrDoc <- TrDocs
-            ,kz_json:get_value(<<"pvt_type">>, TrDoc) == TrType
+            ,kz_json:get_value(K, TrDoc) == V
             ,kz_json:get_value(<<"pvt_reason">>, TrDoc) /= <<"database_rollup">>
     ].
 

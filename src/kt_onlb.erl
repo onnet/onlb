@@ -632,7 +632,7 @@ filter_transactions({K, V}, TrDocs) ->
 
 -spec summ_transactions(kz_json:objects()) -> integer().
 summ_transactions(TrDocs) ->
-    lists:foldl(fun(X, Acc) -> Acc + kz_json:get_integer_value(<<"pvt_amount">>, X, 0) end, 0, TrDocs).
+    lists:foldl(fun(X, Acc) -> Acc + kz_json:get_first_defined([<<"pvt_amount">>,<<"amount">>], X, 0) end, 0, TrDocs).
 
 set_bom_balance(Amount, AccountId) when is_integer(Amount) ->
     AccountMODb = kazoo_modb:get_modb(AccountId),

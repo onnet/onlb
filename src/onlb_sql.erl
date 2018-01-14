@@ -6,6 +6,7 @@
         ,account_balance/1
         ,get_main_agrm_id/1
         ,update_lb_account/3
+        ,lb_account_data/1
         ,curr_month_credit/1
         ,bom_balance/1
         ,calc_curr_month_exp/1
@@ -69,6 +70,31 @@ get_main_agrm_id(AccountId) ->
             of
                 {ok,_,[[AgrmId]]} -> AgrmId;
                 _ -> 'undefined'
+            end
+    end.
+
+-spec lb_account_data(ne_binary()) -> any().
+lb_account_data(AccountId) ->
+    case lbuid_by_uuid(AccountId) of
+        'undefined' -> 'undefined';
+        UID ->
+            QueryString =
+                <<"select "
+                 ,"type "
+                 ,",name "
+                 ,",inn "
+                 ,",kpp "
+                 ,",ogrn "
+                 ,",bank_name "
+                 ,",branch_bank_name "
+                 ,",bik "
+                 ,",settl "
+                 ,",corr "
+                 ,"from accounts "
+                 ,"where uid = ?">>,
+            case mysql_poolboy:query(?LB_MYSQL_POOL, QueryString, [UID]) of
+                {ok,_,[Res]} -> Res;
+                _ -> []
             end
     end.
 

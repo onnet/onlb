@@ -17,6 +17,7 @@
         ,sync_bom_balance/2
         ,sync_agrm_data/2
         ,sync_addresses/2
+        ,sync_customer_data/2
         ,import_periodic_fees/3
         ,import_accounts/3
         ,is_allowed/1
@@ -165,6 +166,12 @@ output_header(<<"sync_addresses">>) ->
     [<<"account_id">>
     ,<<"account_name">>
     ,<<"result">>
+    ];
+
+output_header(<<"sync_customer_data">>) ->
+    [<<"account_id">>
+    ,<<"account_name">>
+    ,<<"result">>
     ].
 
 -spec help(kz_json:object()) -> kz_json:object().
@@ -206,6 +213,11 @@ action(<<"sync_agrm_data">>) ->
 
 action(<<"sync_addresses">>) ->
     [{<<"description">>, <<"Extract LanBilling's addresses registered/office/pobox to Kazoo">>}
+    ,{<<"doc">>, <<"Just an experimentsl feature.">>}
+    ];
+
+action(<<"sync_customer_data">>) ->
+    [{<<"description">>, <<"Extract LanBilling's customer data">>}
     ,{<<"doc">>, <<"Just an experimentsl feature.">>}
     ];
 
@@ -403,6 +415,48 @@ sync_addresses(_, [SubAccountId | DescendantsIds]) ->
         [] ->
             {[SubAccountId ,kz_account:name(JObj) , 'no_addresses'], DescendantsIds};
         Values when is_list(Values) ->
+            DbName = kz_util:format_account_id(SubAccountId,'encoded'),
+            case kz_datamgr:open_doc(DbName, ?ONBILL_DOC) of
+                {ok, Doc} ->
+                    NewDoc = kz_json:set_values(Values, Doc),
+                    kz_datamgr:ensure_saved(DbName, NewDoc),
+                    {[SubAccountId ,kz_account:name(JObj) , 'ok'], DescendantsIds};
+                {'error', 'not_found'} ->
+                    {[SubAccountId ,kz_account:name(JObj) , 'onbill_doc_not_found'], DescendantsIds};
+                _ ->
+                    {[SubAccountId ,kz_account:name(JObj) , 'error'], DescendantsIds}
+            end;
+        _ ->
+            {[SubAccountId ,kz_account:name(JObj) , 'error'], DescendantsIds}
+    end.
+
+-spec sync_customer_data(kz_tasks:extra_args(), kz_tasks:iterator()) -> kz_tasks:iterator().
+sync_customer_data(#{account_id := AccountId}, init) ->
+    {'ok', get_children(AccountId)};
+sync_customer_data(_, []) -> stop;
+sync_customer_data(_, [SubAccountId | DescendantsIds]) ->
+    {'ok', JObj} = kz_account:fetch(SubAccountId),
+    case onlb_sql:lb_account_data(SubAccountId) of
+        [] ->
+            {[SubAccountId ,kz_account:name(JObj) , 'no_such_account_in_lb'], DescendantsIds};
+        [NumType,Name,INN,KPP,Ogrn,BankName,BbranchBankName,BIK,Settl,Corr] ->
+            Type = 
+                case NumType of
+                  2 -> <<"personal">>;
+                  _ -> <<"corporate">>
+                end,
+            Values =
+                [{<<"type">>, Type}
+                ,{<<"account_name">>, Name}
+                ,{<<"account_inn">>, INN}
+                ,{<<"account_kpp">>, KPP}
+                ,{<<"account_ogrn">>, Ogrn}
+                ,{[<<"banking_details">>,<<"bank_name">>], BankName}
+                ,{[<<"banking_details">>,<<"branch_bank_name">>], BbranchBankName}
+                ,{[<<"banking_details">>,<<"bik">>], BIK}
+                ,{[<<"banking_details">>,<<"settlement_accoun">>], Settl}
+                ,{[<<"banking_details">>,<<"correspondent_account">>], Corr}
+                ],
             DbName = kz_util:format_account_id(SubAccountId,'encoded'),
             case kz_datamgr:open_doc(DbName, ?ONBILL_DOC) of
                 {ok, Doc} ->

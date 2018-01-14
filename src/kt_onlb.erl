@@ -44,6 +44,7 @@
                  ,<<"sync_bom_balance">>
                  ,<<"sync_agrm_data">>
                  ,<<"sync_addresses">>
+                 ,<<"sync_customer_data">>
                  ,<<"import_periodic_fees">>
                  ,<<"import_accounts">>
                  ]).
@@ -439,7 +440,10 @@ sync_customer_data(_, [SubAccountId | DescendantsIds]) ->
     case onlb_sql:lb_account_data(SubAccountId) of
         [] ->
             {[SubAccountId ,kz_account:name(JObj) , 'no_such_account_in_lb'], DescendantsIds};
-        [NumType,Name,INN,KPP,Ogrn,BankName,BbranchBankName,BIK,Settl,Corr] ->
+        [NumType,Name,INN,KPP,Ogrn,GenDirU,GlBuhgU,ContPerson,ActBase,PassSernum,PassNo
+        ,PassIssueDate,PassIssueDep,PassIssuePlace,BirthDate,BirthPlace,AbonentName
+        ,AbonentSurname,BankName,BbranchBankName,BIK,Settl,Corr
+        ] ->
             Type = 
                 case NumType of
                   2 -> <<"personal">>;
@@ -451,6 +455,19 @@ sync_customer_data(_, [SubAccountId | DescendantsIds]) ->
                 ,{<<"account_inn">>, INN}
                 ,{<<"account_kpp">>, KPP}
                 ,{<<"account_ogrn">>, Ogrn}
+                ,{<<"gen_dir_u">>, GenDirU}
+                ,{<<"gl_buhg_u">>, GlBuhgU}
+                ,{<<"kont_person">>, ContPerson}
+                ,{<<"act_on_what">>, ActBase}
+                ,{<<"pass_sernum">>, PassSernum}
+                ,{<<"pass_no">>, PassNo}
+                ,{<<"pass_issuedate">>, PassIssueDate}
+                ,{<<"pass_issuedep">>, PassIssueDep}
+                ,{<<"pass_issueplace">>, PassIssuePlace}
+                ,{<<"birthdate">>, BirthDate}
+                ,{<<"birthplace">>, BirthPlace}
+                ,{<<"abonent_name">>, AbonentName}
+                ,{<<"abonent_surname">>, AbonentSurname}
                 ,{[<<"banking_details">>,<<"bank_name">>], BankName}
                 ,{[<<"banking_details">>,<<"branch_bank_name">>], BbranchBankName}
                 ,{[<<"banking_details">>,<<"bik">>], BIK}

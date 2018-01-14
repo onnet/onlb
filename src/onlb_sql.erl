@@ -80,18 +80,31 @@ lb_account_data(AccountId) ->
         UID ->
             QueryString =
                 <<"select "
-                 ,"type "
-                 ,",name "
-                 ,",inn "
-                 ,",kpp "
-                 ,",ogrn "
-                 ,",bank_name "
-                 ,",branch_bank_name "
-                 ,",bik "
-                 ,",settl "
-                 ,",corr "
-                 ,"from accounts "
-                 ,"where uid = ?">>,
+                 ,"type"
+                 ,",name"
+                 ,",inn"
+                 ,",kpp"
+                 ,",ogrn"
+                 ,",gen_dir_u"
+                 ,",gl_buhg_u"
+                 ,",kont_person"
+                 ,",act_on_what"
+                 ,",pass_sernum"
+                 ,",pass_no"
+                 ,",pass_issuedate"
+                 ,",pass_issuedep"
+                 ,",pass_issueplace"
+                 ,",birthdate"
+                 ,",birthplace"
+                 ,",abonent_name"
+                 ,",abonent_surname"
+                 ,",bank_name"
+                 ,",branch_bank_name"
+                 ,",bik"
+                 ,",settl"
+                 ,",corr"
+                 ," from accounts"
+                 ," where uid = ?">>,
             case mysql_poolboy:query(?LB_MYSQL_POOL, QueryString, [UID]) of
                 {ok,_,[Res]} -> Res;
                 _ -> []

@@ -235,7 +235,7 @@ get_periodic_fees(AccountId) ->
     QueryString = <<"select tar_id,serv_cat_idx,mul from `services` where vg_id in (select vg_id from vgroups,accounts where vgroups.uid = accounts.uid and accounts.uuid = ?)">>,
     case mysql_poolboy:query(?LB_MYSQL_POOL, QueryString, [AccountId]) of
         {ok,_,Res} when is_list(Res) ->
-            [[service_cat_uuid(TarId, ServCatIDX), Qty] || [TarId, ServCatIDX, Qty] <- Res];
+            [[service_cat_uuid(TarId, ServCatIDX), kz_term:to_integer(Qty)] || [TarId, ServCatIDX, Qty] <- Res];
         _ -> [] 
     end.
 

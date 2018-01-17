@@ -6,7 +6,6 @@
         ,account_balance/1
         ,get_main_agrm_id/1
         ,update_lb_account/3
-        ,lb_account_data/1
         ,curr_month_credit/1
         ,bom_balance/1
         ,calc_curr_month_exp/1
@@ -14,6 +13,8 @@
         ,is_prepaid/1
         ,agreements_data/1
         ,addresses_data/1
+        ,get_field/3
+        ,update_field/4
         ]).
 
 -include_lib("onlb.hrl").
@@ -70,44 +71,6 @@ get_main_agrm_id(AccountId) ->
             of
                 {ok,_,[[AgrmId]]} -> AgrmId;
                 _ -> 'undefined'
-            end
-    end.
-
--spec lb_account_data(ne_binary()) -> any().
-lb_account_data(AccountId) ->
-    case lbuid_by_uuid(AccountId) of
-        'undefined' -> 'undefined';
-        UID ->
-            QueryString =
-                <<"select "
-                 ,"type"
-                 ,",name"
-                 ,",inn"
-                 ,",kpp"
-                 ,",ogrn"
-                 ,",gen_dir_u"
-                 ,",gl_buhg_u"
-                 ,",kont_person"
-                 ,",act_on_what"
-                 ,",pass_sernum"
-                 ,",pass_no"
-                 ,",pass_issuedate"
-                 ,",pass_issuedep"
-                 ,",pass_issueplace"
-                 ,",birthdate"
-                 ,",birthplace"
-                 ,",abonent_name"
-                 ,",abonent_surname"
-                 ,",bank_name"
-                 ,",branch_bank_name"
-                 ,",bik"
-                 ,",settl"
-                 ,",corr"
-                 ," from accounts"
-                 ," where uid = ?">>,
-            case mysql_poolboy:query(?LB_MYSQL_POOL, QueryString, [UID]) of
-                {ok,_,[Res]} -> Res;
-                _ -> []
             end
     end.
 
@@ -242,4 +205,25 @@ addresses_data(AccountId) ->
                 {ok,_,Res} -> Res;
                 _ -> []
             end
+    end.
+
+-spec get_field(ne_binary(), ne_binary(), ne_binary()) -> kz_proplists().
+get_field(K, Table, AccountId) ->
+    case lbuid_by_uuid(AccountId) of
+        'undefined' -> 'undefined';
+        UID ->
+            QueryString = kz_binary:join([<<"select">>, K, <<"from">>, Table, <<"where uid =">>, UID], <<" ">>),
+            case mysql_poolboy:query(?LB_MYSQL_POOL, QueryString) of
+                {ok,_,[[Res]]} -> Res;
+                _ -> 'undefined'
+            end
+    end.
+
+-spec update_field(ne_binary(), ne_binary(), ne_binary(), ne_binary()) -> kz_proplists().
+update_field(K, V, Table, AccountId) ->
+    case lbuid_by_uuid(AccountId) of
+        'undefined' -> 'undefined';
+        UID ->
+            QueryString = kz_binary:join([<<"update">>, Table, <<"set">>, K, <<"=">>, V, <<"where uid =">>, UID], <<" ">>),
+            mysql_poolboy:query(?LB_MYSQL_POOL, QueryString)
     end.

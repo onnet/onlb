@@ -15,6 +15,8 @@
         ,addresses_data/1
         ,get_field/3
         ,update_field/4
+        ,get_periodic_fees/1
+        ,service_cat_uuid/2
         ]).
 
 -include_lib("onlb.hrl").
@@ -227,3 +229,18 @@ update_field(K, V, Table, AccountId) ->
             QueryString = kz_binary:join([<<"update">>, Table, <<"set">>, K, <<"=">>, V, <<"where uid =">>, UID], <<" ">>),
             mysql_poolboy:query(?LB_MYSQL_POOL, QueryString)
     end.
+
+-spec get_periodic_fees(ne_binary()) -> kz_proplists().
+get_periodic_fees(AccountId) ->
+    QueryString = <<"select tar_id,serv_cat_idx,mul from `services` where vg_id in (select vg_id from vgroups,accounts where vgroups.uid = accounts.uid and accounts.uuid = ?)">>,
+    case mysql_poolboy:query(?LB_MYSQL_POOL, QueryString, [AccountId]) of
+        {ok,_,Res} when is_list(Res) ->
+            [[service_cat_uuid(TarId, ServCatIDX), Qty] || [TarId, ServCatIDX, Qty] <- Res];
+        _ -> [] 
+    end.
+
+-spec service_cat_uuid(integer(), integer()) -> ne_binary().
+service_cat_uuid(TarId, ServCatIDX) ->
+    QueryString = <<"select uuid from service_categories where uuid != '' and tar_id = ? and serv_cat_idx = ? limit 1">>,
+    {ok,_,[[Res]]} = mysql_poolboy:query(?LB_MYSQL_POOL, QueryString, [TarId, ServCatIDX]),
+    Res.

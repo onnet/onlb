@@ -752,7 +752,7 @@ sync_account_type(AccountId) ->
             2 -> <<"personal">>;
             _ -> <<"corporate">>
         end,
-    update_onbill_doc([{<<"type">>, Type}], AccountId).
+    update_onbill_doc([{<<"customer_type">>, Type}], AccountId).
 
 sync_account_pass(AccountId) ->
     case onlb_sql:get_field(<<"pass_issuedate">>, <<"accounts">>, AccountId) of

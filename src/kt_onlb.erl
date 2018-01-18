@@ -16,7 +16,6 @@
         ,compare_usage/2
         ,sync_bom_balance/2
         ,sync_customer_data/2
-        ,import_periodic_fees/3
         ,import_accounts/3
         ,is_allowed/1
         ]).
@@ -41,7 +40,6 @@
                  ,<<"compare_usage">>
                  ,<<"sync_bom_balance">>
                  ,<<"sync_customer_data">>
-                 ,<<"import_periodic_fees">>
                  ,<<"import_accounts">>
                  ]).
 
@@ -194,17 +192,6 @@ action(<<"sync_bom_balance">>) ->
 action(<<"sync_customer_data">>) ->
     [{<<"description">>, <<"Extract LanBilling's customer data">>}
     ,{<<"doc">>, <<"Just an experimentsl feature.">>}
-    ];
-
-action(<<"import_periodic_fees">>) ->
-    Mandatory = ?IMPORT_PERIODIC_FEES_MANDATORY_FIELDS,
-    Optional = ?IMPORT_PERIODIC_FEES_DOC_FIELDS -- Mandatory,
-
-    [{<<"description">>, <<"Bulk-import using periodic fees list">>}
-    ,{<<"doc">>, <<"Assigning periodic fees from file">>}
-    ,{<<"expected_content">>, <<"text/csv">>}
-    ,{<<"mandatory">>, Mandatory}
-    ,{<<"optional">>, Optional}
     ];
 
 action(<<"import_accounts">>) ->
@@ -420,59 +407,6 @@ sync_customer_data(_, [SubAccountId | DescendantsIds]) ->
             {[SubAccountId ,kz_account:name(JObj) , 'processed'], DescendantsIds}
     end.
 
--spec import_periodic_fees(kz_tasks:extra_args(), kz_tasks:iterator(), kz_tasks:args()) ->
-                    {kz_tasks:return(), sets:set()}.
-import_periodic_fees(ExtraArgs=#{account_id := ResellerId}, init, Args) ->
-    remove_periodic_fees_from_db(get_descendants(ResellerId)),
-    kz_datamgr:suppress_change_notice(),
-    IterValue = sets:new(),
-    import_periodic_fees(ExtraArgs, IterValue, Args);
-import_periodic_fees(_
-                    ,_
-                    ,#{<<"account_id">> := AccountId
-                      ,<<"service_id">> := <<"phone_line_649">>
-                      ,<<"quantity">> := Quantity
-                      }
-      ) ->
-    DbName = kz_util:format_account_id(AccountId, 'encoded'),
-    case kz_datamgr:open_doc(DbName, <<"limits">>) of
-        {ok, Doc} ->
-            NewDoc = kz_json:set_value(<<"twoway_trunks">>, kz_term:to_integer(Quantity), Doc),
-            kz_datamgr:ensure_saved(DbName, NewDoc),
-            AccountId;
-        {'error', 'not_found'} ->
-            Values =
-                props:filter_undefined(
-                    [{<<"_id">>, <<"limits">>}
-                    ,{<<"pvt_type">>, <<"limits">>}
-                    ,{<<"twoway_trunks">>, kz_term:to_integer(Quantity)}
-                    ]),
-            NewDoc = kz_json:set_values(Values ,kz_json:new()),
-            kz_datamgr:ensure_saved(DbName, NewDoc),
-            AccountId;
-        _ ->
-            'onbill_data_not_added'
-    end;
-import_periodic_fees(_
-                    ,_
-                    ,#{<<"account_id">> := AccountId
-                      ,<<"service_id">> := ServiceId
-                      ,<<"quantity">> := Quantity
-                      }
-      ) ->
-    DbName = kz_util:format_account_id(AccountId, 'encoded'),
-    ServiceStarts = calendar:datetime_to_gregorian_seconds({onbill_util:period_start_date(AccountId), {0,0,0}}),
-    Values =
-        props:filter_undefined(
-            [{<<"_id">>, kz_datamgr:get_uuid()}
-            ,{<<"pvt_type">>, <<"periodic_fee">>}
-            ,{<<"service_id">>, ServiceId}
-            ,{<<"quantity">>, Quantity}
-            ,{<<"service_starts">>, ServiceStarts}
-            ]),
-    kz_datamgr:save_doc(DbName,kz_json:from_list(Values)),
-    AccountId.
-
 -spec import_accounts(kz_tasks:extra_args(), kz_tasks:iterator(), kz_tasks:args()) ->
                     {kz_tasks:return(), sets:set()}.
 import_accounts(ExtraArgs, init, Args) ->
@@ -510,19 +444,6 @@ import_accounts(#{account_id := ResellerId
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
--spec get_descendants(ne_binary()) -> ne_binaries().
-get_descendants(AccountId) ->
-    ViewOptions = [{'startkey', [AccountId]}
-                  ,{'endkey', [AccountId, kz_json:new()]}
-                  ],
-    case kz_datamgr:get_results(?KZ_ACCOUNTS_DB, <<"accounts/listing_by_descendants">>, ViewOptions) of
-        {'ok', JObjs} -> [kz_doc:id(JObj) || JObj <- JObjs];
-        {'error', _R} ->
-            lager:debug("unable to get descendants of ~s: ~p", [AccountId, _R]),
-            []
-    end.
-
 -spec get_children(ne_binary()) -> ne_binaries().
 get_children(AccountId) ->
     ViewOptions = [{'startkey', [AccountId]}
@@ -531,7 +452,7 @@ get_children(AccountId) ->
     case kz_datamgr:get_results(?KZ_ACCOUNTS_DB, <<"accounts/listing_by_children">>, ViewOptions) of
         {'ok', JObjs} -> [kz_doc:id(JObj) || JObj <- JObjs];
         {'error', _R} ->
-            lager:debug("unable to get descendants of ~s: ~p", [AccountId, _R]),
+            lager:debug("unable to get children of ~s: ~p", [AccountId, _R]),
             []
     end.
 
@@ -589,21 +510,6 @@ send_email(Context) ->
            | kz_api:default_headers(?APP_NAME, ?APP_VERSION)
           ],
     kapps_notify_publisher:cast(Req, fun kapi_notifications:publish_new_user/1).
-
-remove_periodic_fees_from_db([]) ->
-    'ok';
-remove_periodic_fees_from_db([DescendantId | DescendantsIds]) ->
-    Services = kz_services:delete_service_plan(<<"voip_service_plan">>, kz_services:fetch(DescendantId)),
-    kz_services:save(kz_services:add_service_plan(<<"onnet_periodic_fees">>, Services)),
-    DbName = kz_util:format_account_id(DescendantId, 'encoded'),
-    case kz_datamgr:get_result_ids(DbName, <<"periodic_fees/crossbar_listing">>, []) of
-        {'ok', Ids} ->
-            kz_datamgr:del_docs(DbName, Ids);
-        {'error', _R} ->
-            lager:debug("unable to get periodic_fees docs of ~s: ~p", [DescendantId, _R])
-    end,
-    timer:sleep(100),
-    remove_periodic_fees_from_db(DescendantsIds).
 
 -spec fetch_view_docs(ne_binary(), ne_binary()) -> kz_json:objects().
 fetch_view_docs(AccountId, View) ->

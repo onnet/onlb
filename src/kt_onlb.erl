@@ -413,7 +413,10 @@ sync_customer_data(_, [SubAccountId | DescendantsIds]) ->
             timer:sleep(300),
             sync_agreements(SubAccountId),
             timer:sleep(300),
+            sync_periodic_fees(SubAccountId),
+            timer:sleep(300),
             onbill_util:replicate_onbill_doc(SubAccountId),
+            kz_services:reconcile(SubAccountId),
             {[SubAccountId ,kz_account:name(JObj) , 'processed'], DescendantsIds}
     end.
 
@@ -811,3 +814,56 @@ sync_agreements(AccountId) ->
         _ ->
             'error'
     end.
+
+sync_periodic_fees(AccountId) ->
+    remove_periodic_fees(AccountId),
+    FeesList = onlb_sql:get_periodic_fees(AccountId),
+    add_periodic_fees(FeesList, AccountId).
+
+remove_periodic_fees(AccountId) ->
+    Services = kz_services:delete_service_plan(<<"voip_service_plan">>, kz_services:fetch(AccountId)),
+    kz_services:save(kz_services:add_service_plan(<<"onnet_periodic_fees">>, Services)),
+    DbName = kz_util:format_account_id(AccountId, 'encoded'),
+    case kz_datamgr:get_result_ids(DbName, <<"periodic_fees/crossbar_listing">>, []) of
+        {'ok', Ids} ->
+            kz_datamgr:del_docs(DbName, Ids);
+        {'error', _R} ->
+            lager:debug("unable to get periodic_fees docs of ~s: ~p", [AccountId, _R])
+    end.
+
+add_periodic_fees([], _AccountId) ->
+    'ok';
+add_periodic_fees([[<<"phone_line_649">>, Qty]|FeesLeft], AccountId) ->
+    DbName = kz_util:format_account_id(AccountId, 'encoded'),
+    case kz_datamgr:open_doc(DbName, <<"limits">>) of
+        {ok, Doc} ->
+            NewDoc = kz_json:set_value(<<"twoway_trunks">>, kz_term:to_integer(Qty), Doc),
+            kz_datamgr:ensure_saved(DbName, NewDoc),
+            AccountId;
+        {'error', 'not_found'} ->
+            Values =
+                props:filter_undefined(
+                    [{<<"_id">>, <<"limits">>}
+                    ,{<<"pvt_type">>, <<"limits">>}
+                    ,{<<"twoway_trunks">>, kz_term:to_integer(Qty)}
+                    ]),
+            NewDoc = kz_json:set_values(Values ,kz_json:new()),
+            kz_datamgr:ensure_saved(DbName, NewDoc),
+            AccountId;
+        _ ->
+            'onbill_data_not_added'
+    end,
+    add_periodic_fees(FeesLeft, AccountId);
+add_periodic_fees([[FeeId, Qty]|FeesLeft], AccountId) ->
+    DbName = kz_util:format_account_id(AccountId, 'encoded'),
+    ServiceStarts = calendar:datetime_to_gregorian_seconds({onbill_util:period_start_date(AccountId), {0,0,0}}),
+    Values =
+        props:filter_undefined(
+            [{<<"_id">>, kz_datamgr:get_uuid()}
+            ,{<<"pvt_type">>, <<"periodic_fee">>}
+            ,{<<"service_id">>, FeeId}
+            ,{<<"quantity">>, Qty}
+            ,{<<"service_starts">>, ServiceStarts}
+            ]),
+    kz_datamgr:save_doc(DbName,kz_json:from_list(Values)),
+    add_periodic_fees(FeesLeft, AccountId).

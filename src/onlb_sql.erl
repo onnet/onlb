@@ -235,12 +235,16 @@ get_periodic_fees(AccountId) ->
     QueryString = <<"select tar_id,serv_cat_idx,mul from `services` where vg_id in (select vg_id from vgroups,accounts where vgroups.uid = accounts.uid and accounts.uuid = ?)">>,
     case mysql_poolboy:query(?LB_MYSQL_POOL, QueryString, [AccountId]) of
         {ok,_,Res} when is_list(Res) ->
-            [[service_cat_uuid(TarId, ServCatIDX), kz_term:to_integer(Qty)] || [TarId, ServCatIDX, Qty] <- Res];
+            [[service_cat_uuid(TarId, ServCatIDX), kz_term:to_integer(Qty)] || [TarId, ServCatIDX, Qty] <- Res
+            ,is_binary(service_cat_uuid(TarId, ServCatIDX))
+            ];
         _ -> [] 
     end.
 
 -spec service_cat_uuid(integer(), integer()) -> ne_binary().
 service_cat_uuid(TarId, ServCatIDX) ->
     QueryString = <<"select uuid from service_categories where uuid != '' and tar_id = ? and serv_cat_idx = ? limit 1">>,
-    {ok,_,[[Res]]} = mysql_poolboy:query(?LB_MYSQL_POOL, QueryString, [TarId, ServCatIDX]),
-    Res.
+    case mysql_poolboy:query(?LB_MYSQL_POOL, QueryString, [TarId, ServCatIDX]) of
+        {ok,_,[[Res]]} -> Res;
+        _ -> [] 
+    end.

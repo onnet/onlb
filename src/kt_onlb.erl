@@ -402,6 +402,8 @@ sync_customer_data(_, [SubAccountId | DescendantsIds]) ->
             timer:sleep(300),
             sync_periodic_fees(SubAccountId),
             timer:sleep(300),
+            sync_accounts_groups(SubAccountId),
+            timer:sleep(300),
             onbill_util:replicate_onbill_doc(SubAccountId),
             kz_services:reconcile(SubAccountId),
             {[SubAccountId ,kz_account:name(JObj) , 'processed'], DescendantsIds}
@@ -775,3 +777,15 @@ add_periodic_fees([[FeeId, Qty, From, Till]|FeesLeft], AccountId) ->
             ]),
     kz_datamgr:save_doc(DbName,kz_json:from_list(Values)),
     add_periodic_fees(FeesLeft, AccountId).
+
+sync_accounts_groups(AccountId) ->
+    case onlb_sql:accounts_groups(AccountId) of
+        Groups when is_list(Groups) andalso length(Groups) > 0->
+            Values =
+                [{[<<"accounts_groups">>,kapps_config:get_binary(<<"onlb">>, [<<"accounts_groups">>, kz_term:to_binary(Id)])], 'true'}
+                 || [Id] <- Groups
+                , kapps_config:get_binary(<<"onlb">>, [<<"accounts_groups">>, kz_term:to_binary(Id)]) /= 'undefined'
+                ],
+            update_onbill_doc(Values, AccountId);
+        _ -> 'ok'
+    end.

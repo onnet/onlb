@@ -17,6 +17,7 @@
         ,update_field/4
         ,get_periodic_fees/1
         ,service_cat_uuid/2
+        ,accounts_groups/1
         ]).
 
 -include_lib("onlb.hrl").
@@ -246,5 +247,13 @@ service_cat_uuid(TarId, ServCatIDX) ->
     QueryString = <<"select uuid from service_categories where uuid != '' and tar_id = ? and serv_cat_idx = ? limit 1">>,
     case mysql_poolboy:query(?LB_MYSQL_POOL, QueryString, [TarId, ServCatIDX]) of
         {ok,_,[[Res]]} -> Res;
+        _ -> [] 
+    end.
+
+-spec accounts_groups(ne_binary()) -> kz_proplists().
+accounts_groups(AccountId) ->
+    QueryString = <<"select usergroups_staff.group_id from usergroups_staff, usergroups where usergroups.group_id = usergroups_staff.group_id and uid = (Select uid from accounts where uuid = ?)">>,
+    case mysql_poolboy:query(?LB_MYSQL_POOL, QueryString, [AccountId]) of
+        {ok,_,Res} when is_list(Res) -> Res;
         _ -> [] 
     end.

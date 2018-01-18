@@ -232,10 +232,10 @@ update_field(K, V, Table, AccountId) ->
 
 -spec get_periodic_fees(ne_binary()) -> kz_proplists().
 get_periodic_fees(AccountId) ->
-    QueryString = <<"select tar_id,serv_cat_idx,mul from `services` where vg_id in (select vg_id from vgroups,accounts where vgroups.uid = accounts.uid and accounts.uuid = ?)">>,
+    QueryString = <<"select tar_id,serv_cat_idx,mul,timefrom,timeto from `services` where vg_id in (select vg_id from vgroups,accounts where vgroups.uid = accounts.uid and accounts.uuid = ?)">>,
     case mysql_poolboy:query(?LB_MYSQL_POOL, QueryString, [AccountId]) of
         {ok,_,Res} when is_list(Res) ->
-            [[service_cat_uuid(TarId, ServCatIDX), kz_term:to_integer(Qty)] || [TarId, ServCatIDX, Qty] <- Res
+            [[service_cat_uuid(TarId, ServCatIDX), kz_term:to_integer(Qty), From, To] || [TarId, ServCatIDX, Qty, From, To] <- Res
             ,is_binary(service_cat_uuid(TarId, ServCatIDX))
             ];
         _ -> [] 

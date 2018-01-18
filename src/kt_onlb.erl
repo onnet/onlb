@@ -760,9 +760,10 @@ add_periodic_fees([[<<"phone_line_649">>, Qty]|FeesLeft], AccountId) ->
             'onbill_data_not_added'
     end,
     add_periodic_fees(FeesLeft, AccountId);
-add_periodic_fees([[FeeId, Qty]|FeesLeft], AccountId) ->
+add_periodic_fees([[FeeId, Qty, From, Till]|FeesLeft], AccountId) ->
     DbName = kz_util:format_account_id(AccountId, 'encoded'),
-    ServiceStarts = calendar:datetime_to_gregorian_seconds({onbill_util:period_start_date(AccountId), {0,0,0}}),
+    ServiceStarts = calendar:datetime_to_gregorian_seconds(From),
+    ServiceEnds = calendar:datetime_to_gregorian_seconds(Till),
     Values =
         props:filter_undefined(
             [{<<"_id">>, kz_datamgr:get_uuid()}
@@ -770,6 +771,7 @@ add_periodic_fees([[FeeId, Qty]|FeesLeft], AccountId) ->
             ,{<<"service_id">>, FeeId}
             ,{<<"quantity">>, Qty}
             ,{<<"service_starts">>, ServiceStarts}
+            ,{<<"service_ends">>, ServiceEnds}
             ]),
     kz_datamgr:save_doc(DbName,kz_json:from_list(Values)),
     add_periodic_fees(FeesLeft, AccountId).

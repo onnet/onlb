@@ -353,49 +353,33 @@ sync_customer_data(_, [SubAccountId | DescendantsIds]) ->
             sync_account_type(SubAccountId),
             timer:sleep(300),
             sync_account_field(<<"name">>, <<"account_name">>, SubAccountId),
-            timer:sleep(300),
             sync_account_field(<<"inn">>, <<"account_inn">>, SubAccountId),
-            timer:sleep(300),
             sync_account_field(<<"kpp">>, <<"account_kpp">>, SubAccountId),
-            timer:sleep(300),
             sync_account_field(<<"ogrn">>, <<"account_ogrn">>, SubAccountId),
-            timer:sleep(300),
+            sync_account_field(<<"phone">>, SubAccountId),
+            sync_account_field(<<"fax">>, SubAccountId),
+            sync_account_field(<<"email">>, SubAccountId),
+            sync_account_field(<<"mobile">>, SubAccountId),
             sync_account_field(<<"gen_dir_u">>, SubAccountId),
-            timer:sleep(300),
             sync_account_field(<<"gl_buhg_u">>, SubAccountId),
-            timer:sleep(300),
             sync_account_field(<<"kont_person">>, SubAccountId),
-            timer:sleep(300),
             sync_account_field(<<"act_on_what">>, SubAccountId),
-            timer:sleep(300),
             sync_account_field(<<"pass_sernum">>, SubAccountId),
-            timer:sleep(300),
             sync_account_field(<<"pass_no">>, SubAccountId),
-            timer:sleep(300),
             sync_account_field(<<"pass_issuedep">>, SubAccountId),
-            timer:sleep(300),
             sync_account_field(<<"pass_issueplace">>, SubAccountId),
-            timer:sleep(300),
             sync_account_pass(SubAccountId),
             timer:sleep(300),
             sync_account_field(<<"birthplace">>, SubAccountId),
-            timer:sleep(300),
             sync_account_birthdate(SubAccountId),
             timer:sleep(300),
             sync_account_field(<<"abonent_name">>, SubAccountId),
-            timer:sleep(300),
             sync_account_field(<<"abonent_surname">>, SubAccountId),
-            timer:sleep(300),
             sync_account_field(<<"bank_name">>, [<<"banking_details">>,<<"bank_name">>], SubAccountId),
-            timer:sleep(300),
             sync_account_field(<<"branch_bank_name">>, [<<"banking_details">>,<<"branch_bank_name">>], SubAccountId),
-            timer:sleep(300),
             sync_account_field(<<"bik">>, [<<"banking_details">>,<<"bik">>], SubAccountId),
-            timer:sleep(300),
             sync_account_field(<<"settl">>, [<<"banking_details">>,<<"settlement_account">>], SubAccountId),
-            timer:sleep(300),
             sync_account_field(<<"corr">>, [<<"banking_details">>,<<"correspondent_account">>], SubAccountId),
-            timer:sleep(300),
             sync_addresses(SubAccountId),
             timer:sleep(300),
             sync_agreements(SubAccountId),
@@ -404,6 +388,12 @@ sync_customer_data(_, [SubAccountId | DescendantsIds]) ->
             timer:sleep(300),
             sync_accounts_groups(SubAccountId),
             timer:sleep(300),
+            sync_accounts_addons_vals_field(<<"'dir_type'">>, SubAccountId),
+            sync_accounts_addons_vals_field(<<"'dir_type_rod'">>, SubAccountId),
+            sync_accounts_addons_vals_field(<<"'full_type'">>, SubAccountId),
+            sync_accounts_addons_vals_field(<<"'okato'">>, SubAccountId),
+            sync_accounts_addons_vals_field(<<"'short_name'">>, SubAccountId),
+            sync_accounts_addons_vals_field(<<"'vlice'">>, SubAccountId),
             onbill_util:replicate_onbill_doc(SubAccountId),
             kz_services:reconcile(SubAccountId),
             {[SubAccountId ,kz_account:name(JObj) , 'processed'], DescendantsIds}
@@ -654,7 +644,9 @@ sync_account_field(LbK, KzK, AccountId) ->
       'undefined' -> 'ok';
       <<>> -> 'ok';
       [] -> 'ok';
-      V -> update_onbill_doc([{KzK, V}], AccountId)
+      V ->
+          update_onbill_doc([{KzK, V}], AccountId),
+          timer:sleep(500)
     end.
 
 sync_account_type(AccountId) ->
@@ -788,4 +780,17 @@ sync_accounts_groups(AccountId) ->
                 ],
             update_onbill_doc(Values, AccountId);
         _ -> 'ok'
+    end.
+
+sync_accounts_addons_vals_field(LbK, AccountId) ->
+    sync_accounts_addons_vals_field(LbK, LbK, AccountId).
+
+sync_accounts_addons_vals_field(LbF, KzK, AccountId) ->
+    case onlb_sql:get_field(<<"str_value">>, {<<"name">>, LbF}, <<"accounts_addons_vals">>, AccountId) of
+      'undefined' -> 'ok';
+      <<>> -> 'ok';
+      [] -> 'ok';
+      V ->
+          update_onbill_doc([{KzK, V}], AccountId),
+          timer:sleep(500)
     end.

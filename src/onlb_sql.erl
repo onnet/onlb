@@ -14,6 +14,7 @@
         ,agreements_data/1
         ,addresses_data/1
         ,get_field/3
+        ,get_field/4
         ,update_field/4
         ,get_periodic_fees/1
         ,service_cat_uuid/2
@@ -216,6 +217,18 @@ get_field(K, Table, AccountId) ->
         'undefined' -> 'undefined';
         UID ->
             QueryString = kz_binary:join([<<"select">>, K, <<"from">>, Table, <<"where uid =">>, UID], <<" ">>),
+            case mysql_poolboy:query(?LB_MYSQL_POOL, QueryString) of
+                {ok,_,[[Res]]} -> Res;
+                _ -> 'undefined'
+            end
+    end.
+
+-spec get_field(ne_binary(), tuple(), ne_binary(), ne_binary()) -> kz_proplists().
+get_field(Field, {K1, V1}, Table, AccountId) ->
+    case lbuid_by_uuid(AccountId) of
+        'undefined' -> 'undefined';
+        UID ->
+            QueryString = kz_binary:join([<<"select">>, Field, <<"from">>, Table, <<"where">>, K1, <<"=">>, V1, <<"and uid =">>, UID], <<" ">>),
             case mysql_poolboy:query(?LB_MYSQL_POOL, QueryString) of
                 {ok,_,[[Res]]} -> Res;
                 _ -> 'undefined'

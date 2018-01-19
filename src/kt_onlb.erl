@@ -392,7 +392,7 @@ sync_customer_data(_, [SubAccountId | DescendantsIds]) ->
             timer:sleep(300),
             sync_account_field(<<"bik">>, [<<"banking_details">>,<<"bik">>], SubAccountId),
             timer:sleep(300),
-            sync_account_field(<<"settl">>, [<<"banking_details">>,<<"settlement_accoun">>], SubAccountId),
+            sync_account_field(<<"settl">>, [<<"banking_details">>,<<"settlement_account">>], SubAccountId),
             timer:sleep(300),
             sync_account_field(<<"corr">>, [<<"banking_details">>,<<"correspondent_account">>], SubAccountId),
             timer:sleep(300),

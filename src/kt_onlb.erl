@@ -388,12 +388,12 @@ sync_customer_data(_, [SubAccountId | DescendantsIds]) ->
             timer:sleep(300),
             sync_accounts_groups(SubAccountId),
             timer:sleep(300),
-            sync_accounts_addons_vals_field(<<"'dir_type'">>, SubAccountId),
-            sync_accounts_addons_vals_field(<<"'dir_type_rod'">>, SubAccountId),
-            sync_accounts_addons_vals_field(<<"'full_type'">>, SubAccountId),
-            sync_accounts_addons_vals_field(<<"'okato'">>, SubAccountId),
-            sync_accounts_addons_vals_field(<<"'short_name'">>, SubAccountId),
-            sync_accounts_addons_vals_field(<<"'vlice'">>, SubAccountId),
+            sync_accounts_addons_vals_field(<<"'dir_type'">>, <<"dir_type">>, SubAccountId),
+            sync_accounts_addons_vals_field(<<"'dir_type_rod'">>, <<"dir_type_rod">>, SubAccountId),
+            sync_accounts_addons_vals_field(<<"'full_type'">>, <<"full_type">>, SubAccountId),
+            sync_accounts_addons_vals_field(<<"'okato'">>, <<"okato">>, SubAccountId),
+            sync_accounts_addons_vals_field(<<"'short_name'">>, <<"short_name">>, SubAccountId),
+            sync_accounts_addons_vals_field(<<"'vlice'">>, <<"vlice">>, SubAccountId),
             onbill_util:replicate_onbill_doc(SubAccountId),
             kz_services:reconcile(SubAccountId),
             {[SubAccountId ,kz_account:name(JObj) , 'processed'], DescendantsIds}
@@ -781,9 +781,6 @@ sync_accounts_groups(AccountId) ->
             update_onbill_doc(Values, AccountId);
         _ -> 'ok'
     end.
-
-sync_accounts_addons_vals_field(LbK, AccountId) ->
-    sync_accounts_addons_vals_field(LbK, LbK, AccountId).
 
 sync_accounts_addons_vals_field(LbF, KzK, AccountId) ->
     case onlb_sql:get_field(<<"str_value">>, {<<"name">>, LbF}, <<"accounts_addons_vals">>, AccountId) of

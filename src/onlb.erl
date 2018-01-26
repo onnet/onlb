@@ -2,8 +2,8 @@
 -author("Kirill Sysoev <kirill.sysoev@gmail.com>").
 
 -export([add_payment/2
-        ,sync_onbill_lb_info/2
-        ,update_customer_from_lb/1
+        ,kazoo_to_lb_sync/2
+        ,lb_to_kazoo_sync/1
         ]).
 
 -include_lib("onlb.hrl").
@@ -24,8 +24,8 @@ add_payment(AccountId, JObj) ->
             'ok'
     end.
 
--spec sync_onbill_lb_info(ne_binary(), kz_json:object()) -> any().
-sync_onbill_lb_info(AccountId, JObj) ->
+-spec kazoo_to_lb_sync(ne_binary(), kz_json:object()) -> any().
+kazoo_to_lb_sync(AccountId, JObj) ->
     EncodedDb = kz_json:get_value(<<"Database">>, JObj),
     {'ok', Doc} = kz_datamgr:open_doc(EncodedDb, <<"onbill">>),
     case onlb_sql:lbuid_by_uuid(AccountId) of
@@ -43,8 +43,8 @@ create_lb_account(AccountId, _Doc) ->
     [Login|_] = binary:split(kz_account:realm(AccountJObj), <<".">>),
     onlb_http:soap_create_account(AccountId, Login, kz_binary:rand_hex(7), 1).
 
--spec update_customer_from_lb(ne_binary()) -> any().
-update_customer_from_lb(AccountId) ->
+-spec lb_to_kazoo_sync(ne_binary()) -> any().
+lb_to_kazoo_sync(AccountId) ->
     sync_account_type(AccountId),
     timer:sleep(300),
     sync_account_field(<<"name">>, <<"account_name">>, AccountId),

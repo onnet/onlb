@@ -350,7 +350,7 @@ sync_customer_data(_, [SubAccountId | DescendantsIds]) ->
         'undefined' ->
             {[SubAccountId ,kz_account:name(JObj) , 'no_such_account_in_lb'], DescendantsIds};
         _ -> 
-            onlb:update_customer_from_lb(SubAccountId),
+            onlb:lb_to_kazoo_sync(SubAccountId),
             kz_services:reconcile(SubAccountId),
             {[SubAccountId ,kz_account:name(JObj) , 'processed'], DescendantsIds}
     end.

@@ -41,7 +41,7 @@ handle_doc_edited(JObj, _Props) ->
 handle_doc_edited('undefined', _AccountId, JObj) ->
     case kz_json:get_value(<<"ID">>, JObj) of
         <<"onbill">> ->
-    %        _ = kz_util:spawn(fun onlb:sync_onbill_lb_info/2, [AccountId, JObj]);
+    %        _ = kz_util:spawn(fun onlb:kazoo_to_lb_sync/2, [AccountId, JObj]);
             'ok';
         _ ->
             'ok'

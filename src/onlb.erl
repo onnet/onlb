@@ -45,50 +45,50 @@ create_lb_account(AccountId, _Doc) ->
 
 -spec lb_to_kazoo_sync(ne_binary()) -> any().
 lb_to_kazoo_sync(AccountId) ->
-    sync_account_type(AccountId),
+    lb_to_kazoo_sync_account_type(AccountId),
     timer:sleep(300),
-    sync_account_field(<<"name">>, <<"account_name">>, AccountId),
-    sync_account_field(<<"inn">>, <<"account_inn">>, AccountId),
-    sync_account_field(<<"kpp">>, <<"account_kpp">>, AccountId),
-    sync_account_field(<<"ogrn">>, <<"account_ogrn">>, AccountId),
-    sync_account_field(<<"phone">>, AccountId),
-    sync_account_field(<<"fax">>, AccountId),
-    sync_account_field(<<"email">>, AccountId),
-    sync_account_field(<<"mobile">>, AccountId),
-    sync_account_field(<<"gen_dir_u">>, AccountId),
-    sync_account_field(<<"gl_buhg_u">>, AccountId),
-    sync_account_field(<<"kont_person">>, AccountId),
-    sync_account_field(<<"act_on_what">>, AccountId),
-    sync_account_field(<<"pass_sernum">>, AccountId),
-    sync_account_field(<<"pass_no">>, AccountId),
-    sync_account_field(<<"pass_issuedep">>, AccountId),
-    sync_account_field(<<"pass_issueplace">>, AccountId),
-    sync_account_pass(AccountId),
+    lb_to_kazoo_sync_account_field(<<"name">>, <<"account_name">>, AccountId),
+    lb_to_kazoo_sync_account_field(<<"inn">>, <<"account_inn">>, AccountId),
+    lb_to_kazoo_sync_account_field(<<"kpp">>, <<"account_kpp">>, AccountId),
+    lb_to_kazoo_sync_account_field(<<"ogrn">>, <<"account_ogrn">>, AccountId),
+    lb_to_kazoo_sync_account_field(<<"phone">>, AccountId),
+    lb_to_kazoo_sync_account_field(<<"fax">>, AccountId),
+    lb_to_kazoo_sync_account_field(<<"email">>, AccountId),
+    lb_to_kazoo_sync_account_field(<<"mobile">>, AccountId),
+    lb_to_kazoo_sync_account_field(<<"gen_dir_u">>, AccountId),
+    lb_to_kazoo_sync_account_field(<<"gl_buhg_u">>, AccountId),
+    lb_to_kazoo_sync_account_field(<<"kont_person">>, AccountId),
+    lb_to_kazoo_sync_account_field(<<"act_on_what">>, AccountId),
+    lb_to_kazoo_sync_account_field(<<"pass_sernum">>, AccountId),
+    lb_to_kazoo_sync_account_field(<<"pass_no">>, AccountId),
+    lb_to_kazoo_sync_account_field(<<"pass_issuedep">>, AccountId),
+    lb_to_kazoo_sync_account_field(<<"pass_issueplace">>, AccountId),
+    lb_to_kazoo_sync_account_pass(AccountId),
     timer:sleep(300),
-    sync_account_field(<<"birthplace">>, AccountId),
-    sync_account_birthdate(AccountId),
+    lb_to_kazoo_sync_account_field(<<"birthplace">>, AccountId),
+    lb_to_kazoo_sync_account_birthdate(AccountId),
     timer:sleep(300),
-    sync_account_field(<<"abonent_name">>, AccountId),
-    sync_account_field(<<"abonent_surname">>, AccountId),
-    sync_account_field(<<"bank_name">>, [<<"banking_details">>,<<"bank_name">>], AccountId),
-    sync_account_field(<<"branch_bank_name">>, [<<"banking_details">>,<<"branch_bank_name">>], AccountId),
-    sync_account_field(<<"bik">>, [<<"banking_details">>,<<"bik">>], AccountId),
-    sync_account_field(<<"settl">>, [<<"banking_details">>,<<"settlement_account">>], AccountId),
-    sync_account_field(<<"corr">>, [<<"banking_details">>,<<"correspondent_account">>], AccountId),
+    lb_to_kazoo_sync_account_field(<<"abonent_name">>, AccountId),
+    lb_to_kazoo_sync_account_field(<<"abonent_surname">>, AccountId),
+    lb_to_kazoo_sync_account_field(<<"bank_name">>, [<<"banking_details">>,<<"bank_name">>], AccountId),
+    lb_to_kazoo_sync_account_field(<<"branch_bank_name">>, [<<"banking_details">>,<<"branch_bank_name">>], AccountId),
+    lb_to_kazoo_sync_account_field(<<"bik">>, [<<"banking_details">>,<<"bik">>], AccountId),
+    lb_to_kazoo_sync_account_field(<<"settl">>, [<<"banking_details">>,<<"settlement_account">>], AccountId),
+    lb_to_kazoo_sync_account_field(<<"corr">>, [<<"banking_details">>,<<"correspondent_account">>], AccountId),
     sync_addresses(AccountId),
     timer:sleep(300),
     sync_agreements(AccountId),
     timer:sleep(300),
     sync_periodic_fees(AccountId),
     timer:sleep(300),
-    sync_accounts_groups(AccountId),
+    lb_to_kazoo_sync_accounts_groups(AccountId),
     timer:sleep(300),
-    sync_accounts_addons_vals_field(<<"'dir_type'">>, <<"dir_type">>, AccountId),
-    sync_accounts_addons_vals_field(<<"'dir_type_rod'">>, <<"dir_type_rod">>, AccountId),
-    sync_accounts_addons_vals_field(<<"'full_type'">>, <<"full_type">>, AccountId),
-    sync_accounts_addons_vals_field(<<"'okato'">>, <<"okato">>, AccountId),
-    sync_accounts_addons_vals_field(<<"'short_name'">>, <<"short_name">>, AccountId),
-    sync_accounts_addons_vals_field(<<"'vlice'">>, <<"vlice">>, AccountId),
+    lb_to_kazoo_sync_accounts_addons_vals_field(<<"'dir_type'">>, <<"dir_type">>, AccountId),
+    lb_to_kazoo_sync_accounts_addons_vals_field(<<"'dir_type_rod'">>, <<"dir_type_rod">>, AccountId),
+    lb_to_kazoo_sync_accounts_addons_vals_field(<<"'full_type'">>, <<"full_type">>, AccountId),
+    lb_to_kazoo_sync_accounts_addons_vals_field(<<"'okato'">>, <<"okato">>, AccountId),
+    lb_to_kazoo_sync_accounts_addons_vals_field(<<"'short_name'">>, <<"short_name">>, AccountId),
+    lb_to_kazoo_sync_accounts_addons_vals_field(<<"'vlice'">>, <<"vlice">>, AccountId),
     onbill_util:replicate_onbill_doc(AccountId).
 
 update_onbill_doc(Values, AccountId) ->
@@ -109,10 +109,10 @@ update_onbill_doc(Values, AccountId) ->
             'error'
     end.
 
-sync_account_field(LbK, AccountId) ->
-    sync_account_field(LbK, LbK, AccountId).
+lb_to_kazoo_sync_account_field(LbK, AccountId) ->
+    lb_to_kazoo_sync_account_field(LbK, LbK, AccountId).
 
-sync_account_field(LbK, KzK, AccountId) ->
+lb_to_kazoo_sync_account_field(LbK, KzK, AccountId) ->
     case onlb_sql:get_field(LbK, <<"accounts">>, AccountId) of
       'undefined' -> 'ok';
       <<>> -> 'ok';
@@ -122,7 +122,7 @@ sync_account_field(LbK, KzK, AccountId) ->
           timer:sleep(500)
     end.
 
-sync_account_type(AccountId) ->
+lb_to_kazoo_sync_account_type(AccountId) ->
     Type =
         case onlb_sql:get_field(<<"type">>, <<"accounts">>, AccountId) of
             2 -> <<"personal">>;
@@ -130,7 +130,7 @@ sync_account_type(AccountId) ->
         end,
     update_onbill_doc([{<<"customer_type">>, Type}], AccountId).
 
-sync_account_pass(AccountId) ->
+lb_to_kazoo_sync_account_pass(AccountId) ->
     case onlb_sql:get_field(<<"pass_issuedate">>, <<"accounts">>, AccountId) of
         {Y,M,D} ->
             Values = [
@@ -142,7 +142,7 @@ sync_account_pass(AccountId) ->
         _ -> 'ok'
     end.
 
-sync_account_birthdate(AccountId) ->
+lb_to_kazoo_sync_account_birthdate(AccountId) ->
     case onlb_sql:get_field(<<"birthdate">>, <<"accounts">>, AccountId) of
         {Y,M,D} ->
             Values = [
@@ -243,7 +243,7 @@ add_periodic_fees([[FeeId, Qty, From, Till]|FeesLeft], AccountId) ->
     kz_datamgr:save_doc(DbName,kz_json:from_list(Values)),
     add_periodic_fees(FeesLeft, AccountId).
 
-sync_accounts_groups(AccountId) ->
+lb_to_kazoo_sync_accounts_groups(AccountId) ->
     case onlb_sql:accounts_groups(AccountId) of
         Groups when is_list(Groups) andalso length(Groups) > 0->
             Values =
@@ -255,7 +255,7 @@ sync_accounts_groups(AccountId) ->
         _ -> 'ok'
     end.
 
-sync_accounts_addons_vals_field(LbF, KzK, AccountId) ->
+lb_to_kazoo_sync_accounts_addons_vals_field(LbF, KzK, AccountId) ->
     case onlb_sql:get_field(<<"str_value">>, {<<"name">>, LbF}, <<"accounts_addons_vals">>, AccountId) of
       'undefined' -> 'ok';
       <<>> -> 'ok';

@@ -304,9 +304,9 @@ collect_agreements_data([[OperId, AgrmNumber, {Y,M,D}]|Tail], Acc) ->
         CarrierId ->
             Values =
                 [{[<<"agrm">>, CarrierId, <<"number">>], AgrmNumber}
-                ,{[<<"agrm">>, CarrierId, <<"date_json">>, <<"day">>], D}
-                ,{[<<"agrm">>, CarrierId, <<"date_json">>, <<"month">>], M}
-                ,{[<<"agrm">>, CarrierId, <<"date_json">>, <<"year">>], Y}
+                ,{[<<"agrm">>, CarrierId, <<"date">>]
+                 ,calendar:datetime_to_gregorian_seconds({{Y,M,D},{12,0,0}})
+                 }
                 ],
             collect_agreements_data(Tail, Acc ++ Values)
     end;
@@ -398,6 +398,8 @@ filterout_obsoleted_keys(AccountId) ->
         ,<<"'okato'">>
         ,<<"'short_name'">>
         ,<<"'vlice'">>
+        ,<<"agrm">>
+        ,<<"billing_address">>
         ],
     DbName = kz_util:format_account_id(AccountId,'encoded'),
     case kz_datamgr:open_doc(DbName, ?ONBILL_DOC) of

@@ -4,6 +4,7 @@
 -export([add_payment/2
         ,kazoo_to_lb_sync/1
         ,lb_to_kazoo_sync/1
+        ,filterout_obsoleted_keys/1
         ]).
 
 -include_lib("onlb.hrl").
@@ -385,3 +386,24 @@ kazoo_to_lb_sync_account_type(AccountId) ->
             'ok'
     end.
 
+-spec filterout_obsoleted_keys(ne_binary()) -> any().
+filterout_obsoleted_keys(AccountId) ->
+    Keys = 
+        [<<"account_name">>
+        ,<<"account_inn">>
+        ,<<"account_kpp">>
+        ,<<"'dir_type'">>
+        ,<<"'dir_type_rod'">>
+        ,<<"'full_type'">>
+        ,<<"'okato'">>
+        ,<<"'short_name'">>
+        ,<<"'vlice'">>
+        ],
+    DbName = kz_util:format_account_id(AccountId,'encoded'),
+    case kz_datamgr:open_doc(DbName, ?ONBILL_DOC) of
+        {ok, Doc} ->
+            NewDoc = kz_json:delete_keys(Keys, Doc),
+            kz_datamgr:ensure_saved(DbName, NewDoc);
+        _ ->
+            'open_doc_error'
+    end.

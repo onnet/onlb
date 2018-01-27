@@ -18,6 +18,7 @@
         ,sync_customer_data/2
         ,import_accounts/3
         ,is_allowed/1
+        ,filterout_obsoleted_keys/2
         ]).
 
 %% Dev temp
@@ -41,6 +42,7 @@
                  ,<<"sync_bom_balance">>
                  ,<<"sync_customer_data">>
                  ,<<"import_accounts">>
+                 ,<<"filterout_obsoleted_keys">>
                  ]).
 
 -define(IMPORT_PERIODIC_FEES_DOC_FIELDS
@@ -155,6 +157,12 @@ output_header(<<"sync_customer_data">>) ->
     [<<"account_id">>
     ,<<"account_name">>
     ,<<"result">>
+    ];
+
+output_header(<<"filterout_obsoleted_keys">>) ->
+    [<<"account_id">>
+    ,<<"account_name">>
+    ,<<"result">>
     ].
 
 -spec help(kz_json:object()) -> kz_json:object().
@@ -203,6 +211,11 @@ action(<<"import_accounts">>) ->
     ,{<<"expected_content">>, <<"text/csv">>}
     ,{<<"mandatory">>, Mandatory}
     ,{<<"optional">>, Optional}
+    ];
+
+action(<<"filterout_obsoleted_keys">>) ->
+    [{<<"description">>, <<"Delete obseleted flags from onbill docs">>}
+    ,{<<"doc">>, <<"Just an experimentsl feature.">>}
     ].
 
 %%% Verifiers
@@ -387,6 +400,20 @@ import_accounts(#{account_id := ResellerId
             end;
         _ ->
             'account_not_created'
+    end.
+
+-spec filterout_obsoleted_keys(kz_tasks:extra_args(), kz_tasks:iterator()) -> kz_tasks:iterator().
+filterout_obsoleted_keys(#{account_id := AccountId}, init) ->
+    {'ok', get_children(AccountId)};
+filterout_obsoleted_keys(_, []) -> stop;
+filterout_obsoleted_keys(_, [SubAccountId | DescendantsIds]) ->
+    {'ok', JObj} = kz_account:fetch(SubAccountId),
+    case onlb_sql:lbuid_by_uuid(SubAccountId) of
+        'undefined' ->
+            {[SubAccountId ,kz_account:name(JObj) , 'no_such_account_in_lb'], DescendantsIds};
+        _ -> 
+            onlb:filterout_obsoleted_keys(SubAccountId),
+            {[SubAccountId ,kz_account:name(JObj) , 'processed'], DescendantsIds}
     end.
 
 %%%===================================================================

@@ -30,11 +30,9 @@ kazoo_to_lb_sync(AccountId) ->
         'undefined' ->
             create_lb_account(AccountId),
             timer:sleep(1000),
-         %   onlb_sql:update_lb_account(onlb_sql:lbuid_by_uuid(AccountId), AccountId, Doc);
             kazoo_to_lb_sync_fields(AccountId);
         _UID ->
             kazoo_to_lb_sync_fields(AccountId)
-         %   onlb_sql:update_lb_account(UID, AccountId, Doc)
     end.
 
 -spec create_lb_account(ne_binary()) -> any().

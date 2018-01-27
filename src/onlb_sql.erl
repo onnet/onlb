@@ -5,7 +5,6 @@
         ,lbuid_by_uuid/1
         ,account_balance/1
         ,get_main_agrm_id/1
-        ,update_lb_account/3
         ,curr_month_credit/1
         ,bom_balance/1
         ,calc_curr_month_exp/1
@@ -78,40 +77,6 @@ get_main_agrm_id(AccountId) ->
             end
     end.
 
--spec update_lb_account(integer(), ne_binary(), kz_json:object()) -> any().
-update_lb_account(UID, _AccountId, Doc) ->
-    AccountName = kz_json:get_binary_value(<<"account_name">>, Doc, <<>>),
-    Type =
-        case kz_json:get_binary_value(<<"customer_type">>, Doc) of
-            <<"personal">> -> 2;
-            _ -> 1
-        end,
-    QueryString =
-        <<"UPDATE `billing`.`accounts` SET name = ? "
-         ,",type = ? "
-         ,",inn = ? "
-         ,",kpp = ? "
-         ,",ogrn = ? "
-         ,",bank_name = ? "
-         ,",branch_bank_name = ? "
-         ,",bik = ? "
-         ,",settl = ? "
-         ,",corr = ? "
-         ," WHERE accounts.uid = ?">>,
-    Values = [kz_term:to_binary(AccountName)
-             ,kz_term:to_binary(Type)
-             ,kz_json:get_binary_value(<<"account_inn">>, Doc, <<>>)
-             ,kz_json:get_binary_value(<<"account_kpp">>, Doc, <<>>)
-             ,kz_json:get_binary_value(<<"account_ogrn">>, Doc, <<>>)
-             ,kz_json:get_binary_value([<<"banking_details">>,<<"bank_name">>], Doc, <<>>)
-             ,kz_json:get_binary_value([<<"banking_details">>,<<"bank_branch_name">>], Doc, <<>>)
-             ,kz_json:get_binary_value([<<"banking_details">>,<<"bik">>], Doc, <<>>)
-             ,kz_json:get_binary_value([<<"banking_details">>,<<"settlement_account">>], Doc, <<>>)
-             ,kz_json:get_binary_value([<<"banking_details">>,<<"correspondent_account">>], Doc, <<>>)
-             ,kz_term:to_binary(UID)
-             ],
-    mysql_poolboy:query(?LB_MYSQL_POOL, QueryString, Values).
-    
 -spec curr_month_credit(ne_binary()) -> any().
 curr_month_credit(AccountId) ->
     case get_main_agrm_id(AccountId) of

@@ -32,9 +32,11 @@ kazoo_to_lb_sync(AccountId, JObj) ->
         'undefined' ->
             create_lb_account(AccountId, Doc),
             timer:sleep(1000),
-            onlb_sql:update_lb_account(onlb_sql:lbuid_by_uuid(AccountId), AccountId, Doc);
-        UID ->
-            onlb_sql:update_lb_account(UID, AccountId, Doc)
+         %   onlb_sql:update_lb_account(onlb_sql:lbuid_by_uuid(AccountId), AccountId, Doc);
+            kazoo_to_lb_sync_fields(AccountId);
+        _UID ->
+            kazoo_to_lb_sync_fields(AccountId)
+         %   onlb_sql:update_lb_account(UID, AccountId, Doc)
     end.
 
 -spec create_lb_account(ne_binary(), kz_json:object()) -> any().
@@ -42,6 +44,12 @@ create_lb_account(AccountId, _Doc) ->
     {'ok', AccountJObj} = kz_account:fetch(AccountId),
     [Login|_] = binary:split(kz_account:realm(AccountJObj), <<".">>),
     onlb_http:soap_create_account(AccountId, Login, kz_binary:rand_hex(7), 1).
+
+-spec kazoo_to_lb_sync_fields(ne_binary()) -> any().
+kazoo_to_lb_sync_fields(AccountId) ->
+    kazoo_to_lb_sync_account_field(<<"account_name">>, <<"name">>, AccountId),
+    kazoo_to_lb_sync_account_field(<<"gl_buhg_u">>, AccountId),
+    kazoo_to_lb_sync_account_field(<<"account_inn">>, <<"inn">>, AccountId).
 
 -spec lb_to_kazoo_sync(ne_binary()) -> any().
 lb_to_kazoo_sync(AccountId) ->
@@ -324,3 +332,20 @@ maybe_format_address_element([H|T], Acc) when Acc == <<>> ->
 maybe_format_address_element([H|T], Acc) ->
     maybe_format_address_element(T, <<Acc/binary, ", ", H/binary>>).
 
+kazoo_to_lb_sync_account_field(KzK, AccountId) ->
+    kazoo_to_lb_sync_account_field(KzK, KzK, AccountId).
+
+kazoo_to_lb_sync_account_field(KzK, LbK, AccountId) ->
+    DbName = kz_util:format_account_id(AccountId,'encoded'),
+    case kz_datamgr:open_doc(DbName, ?ONBILL_DOC) of
+        {ok, Doc} ->
+            case kz_json:get_value(KzK, Doc) of
+                V when is_binary(V) ->
+                    onlb_sql:update_field(LbK, V, <<"accounts">>, AccountId),
+                    timer:sleep(500);
+                _ ->
+                    'ok'
+            end;
+        _ ->
+            'ok'
+    end.

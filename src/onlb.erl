@@ -2,7 +2,7 @@
 -author("Kirill Sysoev <kirill.sysoev@gmail.com>").
 
 -export([add_payment/2
-        ,kazoo_to_lb_sync/2
+        ,kazoo_to_lb_sync/1
         ,lb_to_kazoo_sync/1
         ]).
 
@@ -24,13 +24,11 @@ add_payment(AccountId, JObj) ->
             'ok'
     end.
 
--spec kazoo_to_lb_sync(ne_binary(), kz_json:object()) -> any().
-kazoo_to_lb_sync(AccountId, JObj) ->
-    EncodedDb = kz_json:get_value(<<"Database">>, JObj),
-    {'ok', Doc} = kz_datamgr:open_doc(EncodedDb, <<"onbill">>),
+-spec kazoo_to_lb_sync(ne_binary()) -> any().
+kazoo_to_lb_sync(AccountId) ->
     case onlb_sql:lbuid_by_uuid(AccountId) of
         'undefined' ->
-            create_lb_account(AccountId, Doc),
+            create_lb_account(AccountId),
             timer:sleep(1000),
          %   onlb_sql:update_lb_account(onlb_sql:lbuid_by_uuid(AccountId), AccountId, Doc);
             kazoo_to_lb_sync_fields(AccountId);
@@ -39,26 +37,51 @@ kazoo_to_lb_sync(AccountId, JObj) ->
          %   onlb_sql:update_lb_account(UID, AccountId, Doc)
     end.
 
--spec create_lb_account(ne_binary(), kz_json:object()) -> any().
-create_lb_account(AccountId, _Doc) ->
+-spec create_lb_account(ne_binary()) -> any().
+create_lb_account(AccountId) ->
     {'ok', AccountJObj} = kz_account:fetch(AccountId),
     [Login|_] = binary:split(kz_account:realm(AccountJObj), <<".">>),
     onlb_http:soap_create_account(AccountId, Login, kz_binary:rand_hex(7), 1).
 
 -spec kazoo_to_lb_sync_fields(ne_binary()) -> any().
 kazoo_to_lb_sync_fields(AccountId) ->
-    kazoo_to_lb_sync_account_field(<<"account_name">>, <<"name">>, AccountId),
+    kazoo_to_lb_sync_account_type(AccountId),
+    kazoo_to_lb_sync_account_field(<<"name">>, AccountId),
+    kazoo_to_lb_sync_account_field(<<"inn">>, AccountId),
+    kazoo_to_lb_sync_account_field(<<"kpp">>, AccountId),
+    kazoo_to_lb_sync_account_field(<<"ogrn">>, AccountId),
+    kazoo_to_lb_sync_account_field(<<"phone">>, AccountId),
+    kazoo_to_lb_sync_account_field(<<"fax">>, AccountId),
+    kazoo_to_lb_sync_account_field(<<"email">>, AccountId),
+    kazoo_to_lb_sync_account_field(<<"mobile">>, AccountId),
+    kazoo_to_lb_sync_account_field(<<"gen_dir_u">>, AccountId),
     kazoo_to_lb_sync_account_field(<<"gl_buhg_u">>, AccountId),
-    kazoo_to_lb_sync_account_field(<<"account_inn">>, <<"inn">>, AccountId).
+    kazoo_to_lb_sync_account_field(<<"kont_person">>, AccountId),
+    kazoo_to_lb_sync_account_field(<<"act_on_what">>, AccountId),
+    kazoo_to_lb_sync_account_field(<<"pass_sernum">>, AccountId),
+    kazoo_to_lb_sync_account_field(<<"pass_no">>, AccountId),
+    kazoo_to_lb_sync_account_field(<<"pass_issuedep">>, AccountId),
+    kazoo_to_lb_sync_account_field(<<"pass_issueplace">>, AccountId),
+    kazoo_to_lb_sync_account_field(<<"birthplace">>, AccountId),
+    kazoo_to_lb_sync_account_field(<<"abonent_name">>, AccountId),
+    kazoo_to_lb_sync_account_field(<<"abonent_surname">>, AccountId),
+    kazoo_to_lb_sync_account_field([<<"banking_details">>,<<"bank_name">>], <<"bank_name">>, AccountId),
+    kazoo_to_lb_sync_account_field([<<"banking_details">>,<<"branch_bank_name">>], <<"branch_bank_name">>, AccountId),
+    kazoo_to_lb_sync_account_field([<<"banking_details">>,<<"bik">>], <<"bik">>, AccountId),
+    kazoo_to_lb_sync_account_field([<<"banking_details">>,<<"settlement_account">>], <<"settl">>, AccountId),
+    kazoo_to_lb_sync_account_field([<<"banking_details">>,<<"correspondent_account">>], <<"corr">>, AccountId),
+  %  kazoo_to_lb_sync_account_pass(AccountId),
+  %  kazoo_to_lb_sync_account_birthdate(AccountId),
+    'ok'.
 
 -spec lb_to_kazoo_sync(ne_binary()) -> any().
 lb_to_kazoo_sync(AccountId) ->
     lb_to_kazoo_sync_account_type(AccountId),
     timer:sleep(300),
-    lb_to_kazoo_sync_account_field(<<"name">>, <<"account_name">>, AccountId),
-    lb_to_kazoo_sync_account_field(<<"inn">>, <<"account_inn">>, AccountId),
-    lb_to_kazoo_sync_account_field(<<"kpp">>, <<"account_kpp">>, AccountId),
-    lb_to_kazoo_sync_account_field(<<"ogrn">>, <<"account_ogrn">>, AccountId),
+    lb_to_kazoo_sync_account_field(<<"name">>, AccountId),
+    lb_to_kazoo_sync_account_field(<<"inn">>, AccountId),
+    lb_to_kazoo_sync_account_field(<<"kpp">>, AccountId),
+    lb_to_kazoo_sync_account_field(<<"ogrn">>, AccountId),
     lb_to_kazoo_sync_account_field(<<"phone">>, AccountId),
     lb_to_kazoo_sync_account_field(<<"fax">>, AccountId),
     lb_to_kazoo_sync_account_field(<<"email">>, AccountId),
@@ -349,3 +372,18 @@ kazoo_to_lb_sync_account_field(KzK, LbK, AccountId) ->
         _ ->
             'ok'
     end.
+
+kazoo_to_lb_sync_account_type(AccountId) ->
+    DbName = kz_util:format_account_id(AccountId,'encoded'),
+    case kz_datamgr:open_doc(DbName, ?ONBILL_DOC) of
+        {ok, Doc} ->
+            Type =
+                case kz_json:get_binary_value(<<"customer_type">>, Doc) of
+                    <<"personal">> -> 2;
+                    _ -> 1
+                end,
+            onlb_sql:update_field(<<"type">>, Type, <<"accounts">>, AccountId);
+        _ ->
+            'ok'
+    end.
+

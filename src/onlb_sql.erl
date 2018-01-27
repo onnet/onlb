@@ -240,8 +240,8 @@ update_field(K, V, Table, AccountId) ->
     case lbuid_by_uuid(AccountId) of
         'undefined' -> 'undefined';
         UID ->
-            QueryString = kz_binary:join([<<"update">>, Table, <<"set">>, K, <<"=">>, V, <<"where uid =">>, UID], <<" ">>),
-            mysql_poolboy:query(?LB_MYSQL_POOL, QueryString)
+            QueryString = kz_binary:join([<<"update">>, Table, <<"set">>, K, <<"= ?">>, <<"where uid =">>, UID], <<" ">>),
+            mysql_poolboy:query(?LB_MYSQL_POOL, QueryString, [V])
     end.
 
 -spec get_periodic_fees(ne_binary()) -> kz_proplists().

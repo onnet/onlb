@@ -18,7 +18,7 @@
         ,sync_customer_data/2
         ,import_accounts/3
         ,is_allowed/1
-        ,filterout_obsoleted_keys/2
+        ,migrate_onbill_doc/2
         ]).
 
 %% Dev temp
@@ -42,7 +42,7 @@
                  ,<<"sync_bom_balance">>
                  ,<<"sync_customer_data">>
                  ,<<"import_accounts">>
-                 ,<<"filterout_obsoleted_keys">>
+                 ,<<"migrate_onbill_doc">>
                  ]).
 
 -define(IMPORT_PERIODIC_FEES_DOC_FIELDS
@@ -159,7 +159,7 @@ output_header(<<"sync_customer_data">>) ->
     ,<<"result">>
     ];
 
-output_header(<<"filterout_obsoleted_keys">>) ->
+output_header(<<"migrate_onbill_doc">>) ->
     [<<"account_id">>
     ,<<"account_name">>
     ,<<"result">>
@@ -213,7 +213,7 @@ action(<<"import_accounts">>) ->
     ,{<<"optional">>, Optional}
     ];
 
-action(<<"filterout_obsoleted_keys">>) ->
+action(<<"migrate_onbill_doc">>) ->
     [{<<"description">>, <<"Delete obseleted flags from onbill docs">>}
     ,{<<"doc">>, <<"Just an experimentsl feature.">>}
     ].
@@ -402,17 +402,17 @@ import_accounts(#{account_id := ResellerId
             'account_not_created'
     end.
 
--spec filterout_obsoleted_keys(kz_tasks:extra_args(), kz_tasks:iterator()) -> kz_tasks:iterator().
-filterout_obsoleted_keys(#{account_id := AccountId}, init) ->
+-spec migrate_onbill_doc(kz_tasks:extra_args(), kz_tasks:iterator()) -> kz_tasks:iterator().
+migrate_onbill_doc(#{account_id := AccountId}, init) ->
     {'ok', get_children(AccountId)};
-filterout_obsoleted_keys(_, []) -> stop;
-filterout_obsoleted_keys(_, [SubAccountId | DescendantsIds]) ->
+migrate_onbill_doc(_, []) -> stop;
+migrate_onbill_doc(_, [SubAccountId | DescendantsIds]) ->
     {'ok', JObj} = kz_account:fetch(SubAccountId),
     case onlb_sql:lbuid_by_uuid(SubAccountId) of
         'undefined' ->
             {[SubAccountId ,kz_account:name(JObj) , 'no_such_account_in_lb'], DescendantsIds};
         _ -> 
-            onlb:filterout_obsoleted_keys(SubAccountId),
+            onlb:migrate_onbill_doc(SubAccountId),
             {[SubAccountId ,kz_account:name(JObj) , 'processed'], DescendantsIds}
     end.
 

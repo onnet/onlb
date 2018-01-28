@@ -4,7 +4,7 @@
 -export([add_payment/2
         ,kazoo_to_lb_sync/1
         ,lb_to_kazoo_sync/1
-        ,filterout_obsoleted_keys/1
+        ,migrate_onbill_doc/1
         ]).
 
 -include_lib("onlb.hrl").
@@ -386,8 +386,8 @@ kazoo_to_lb_sync_account_type(AccountId) ->
             'ok'
     end.
 
--spec filterout_obsoleted_keys(ne_binary()) -> any().
-filterout_obsoleted_keys(AccountId) ->
+-spec migrate_onbill_doc(ne_binary()) -> any().
+migrate_onbill_doc(AccountId) ->
     Keys = 
         [<<"account_name">>
         ,<<"account_inn">>
@@ -403,10 +403,15 @@ filterout_obsoleted_keys(AccountId) ->
         ,<<"billing_address">>
         ],
     DbName = kz_util:format_account_id(AccountId,'encoded'),
+    Values =
+        [{<<"_id">>, ?ONBILL_DOC}
+        ,{<<"pvt_type">>, ?ONBILL_DOC}
+        ,{<<"pvt_account_id">>, AccountId}
+        ],
     case kz_datamgr:open_doc(DbName, ?ONBILL_DOC) of
         {ok, Doc} ->
             NewDoc = kz_json:delete_keys(Keys, Doc),
-            kz_datamgr:ensure_saved(DbName, NewDoc);
+            kz_datamgr:ensure_saved(DbName, kz_json:set_values(Values, NewDoc));
         _ ->
-            'open_doc_error'
+            kz_datamgr:ensure_saved(DbName, kz_json:set_values(Values, kz_json:new()))
     end.

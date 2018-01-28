@@ -93,7 +93,7 @@ lb_to_kazoo_sync(AccountId) ->
     lb_to_kazoo_sync_account_field(<<"pass_no">>, AccountId),
     lb_to_kazoo_sync_account_field(<<"pass_issuedep">>, AccountId),
     lb_to_kazoo_sync_account_field(<<"pass_issueplace">>, AccountId),
-    lb_to_kazoo_sync_account_pass(AccountId),
+    lb_to_kazoo_sync_account_passport(AccountId),
     timer:sleep(300),
     lb_to_kazoo_sync_account_field(<<"birthplace">>, AccountId),
     lb_to_kazoo_sync_account_birthdate(AccountId),
@@ -160,26 +160,32 @@ lb_to_kazoo_sync_account_type(AccountId) ->
         end,
     update_onbill_doc([{<<"customer_type">>, Type}], AccountId).
 
-lb_to_kazoo_sync_account_pass(AccountId) ->
+lb_to_kazoo_sync_account_passport(AccountId) ->
     case onlb_sql:get_field(<<"pass_issuedate">>, <<"accounts">>, AccountId) of
+        {0,0,0} ->
+            onbill_util:process_documents([<<"pass_issuedate">>]
+                                         ,[]
+                                         ,kz_util:format_account_id(AccountId,'encoded')
+                                         ,[?ONBILL_DOC]
+                                         );
         {Y,M,D} ->
-            Values = [
-                      {[<<"pass_issuedate">>,<<"year">>], Y}
-                     ,{[<<"pass_issuedate">>,<<"month">>], M}
-                     ,{[<<"pass_issuedate">>,<<"day">>], D}
-                     ],
+            Values =
+                [{<<"pass_issuedate">>, calendar:datetime_to_gregorian_seconds({{Y,M,D},{12,0,0}})}],
             update_onbill_doc(Values, AccountId);
         _ -> 'ok'
     end.
 
 lb_to_kazoo_sync_account_birthdate(AccountId) ->
     case onlb_sql:get_field(<<"birthdate">>, <<"accounts">>, AccountId) of
+        {0,0,0} ->
+            onbill_util:process_documents([<<"birthdate">>]
+                                         ,[]
+                                         ,kz_util:format_account_id(AccountId,'encoded')
+                                         ,[?ONBILL_DOC]
+                                         );
         {Y,M,D} ->
-            Values = [
-                      {[<<"birthdate">>,<<"year">>], Y}
-                     ,{[<<"birthdate">>,<<"month">>], M}
-                     ,{[<<"birthdate">>,<<"day">>], D}
-                     ],
+            Values =
+                [{<<"birthdate">>, calendar:datetime_to_gregorian_seconds({{Y,M,D},{12,0,0}})}],
             update_onbill_doc(Values, AccountId);
         _ -> 'ok'
     end.
@@ -399,15 +405,14 @@ migrate_onbill_doc(AccountId) ->
         ,<<"'okato'">>
         ,<<"'short_name'">>
         ,<<"'vlice'">>
-    %    ,<<"agrm">>
         ,<<"billing_address">>
         ],
-    DbName = kz_util:format_account_id(AccountId,'encoded'),
     Values =
         [{<<"_id">>, ?ONBILL_DOC}
         ,{<<"pvt_type">>, ?ONBILL_DOC}
         ,{<<"pvt_account_id">>, AccountId}
         ],
+    DbName = kz_util:format_account_id(AccountId,'encoded'),
     case kz_datamgr:open_doc(DbName, ?ONBILL_DOC) of
         {ok, Doc} ->
             NewDoc = kz_json:delete_keys(Keys, Doc),

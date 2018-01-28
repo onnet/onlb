@@ -392,13 +392,14 @@ filterout_obsoleted_keys(AccountId) ->
         [<<"account_name">>
         ,<<"account_inn">>
         ,<<"account_kpp">>
+        ,<<"account_ogrn">>
         ,<<"'dir_type'">>
         ,<<"'dir_type_rod'">>
         ,<<"'full_type'">>
         ,<<"'okato'">>
         ,<<"'short_name'">>
         ,<<"'vlice'">>
-        ,<<"agrm">>
+    %    ,<<"agrm">>
         ,<<"billing_address">>
         ],
     DbName = kz_util:format_account_id(AccountId,'encoded'),
